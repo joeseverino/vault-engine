@@ -4,12 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "severino-vault-engine"
-version = "0.1.2"
+version = "0.1.3"
 description = "Domain-agnostic vault-governance engine: frontmatter schema profiles, indexing, ranked search, a task ledger, atomic writes, and a composable MCP core (register_core). The reusable core behind severino-vault-mcp and severino-edu-mcp."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-authors = [{ name = "Joseph Severino", email = "github@jseverino.com" }]
+license-files = ["LICENSE"]
+authors = [{ name = "Joe Severino", email = "github@jseverino.com" }]
+maintainers = [{ name = "Joe Severino", email = "github@jseverino.com" }]
 keywords = [
     "mcp",
     "model-context-protocol",
@@ -20,7 +22,6 @@ keywords = [
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -45,7 +46,10 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/joeseverino/vault-engine"
+Repository = "https://github.com/joeseverino/vault-engine"
 Issues = "https://github.com/joeseverino/vault-engine/issues"
+Changelog = "https://github.com/joeseverino/vault-engine/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/joeseverino/vault-engine/blob/main/README.md"
 
 [tool.uv.sources]
 cordon-emit = { git = "https://github.com/joeseverino/cordon", subdirectory = "emitters/python" }
