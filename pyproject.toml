@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "vault-engine"
+name = "severino-vault-engine"
 version = "0.1.0"
 description = "Domain-agnostic vault-governance engine: frontmatter schema profiles, indexing, ranked search, a task ledger, atomic writes, and a composable MCP core (register_core). The reusable core behind severino-vault-mcp and severino-edu-mcp."
 readme = "README.md"
