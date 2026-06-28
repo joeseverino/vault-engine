@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vault-engine"
+version = "0.1.0"
+description = "Domain-agnostic vault-governance engine: frontmatter schema profiles, indexing, ranked search, a task ledger, atomic writes, and a composable MCP core (register_core). The reusable core behind severino-vault-mcp and severino-edu-mcp."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Joseph Severino", email = "github@jseverino.com" }]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "obsidian",
+    "frontmatter",
+    "local-first",
+    "vault",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "mcp>=1.27",
+    "starlette>=1.0.1",
+    # cordon's Python reference emitter — the single source for the command-surface
+    # contract (cli_introspect.py is a thin binding). Resolved from cordon's main
+    # via the git source below.
+    "cordon-emit",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/joeseverino/vault-engine"
+Issues = "https://github.com/joeseverino/vault-engine/issues"
+
+[tool.uv.sources]
+cordon-emit = { git = "https://github.com/joeseverino/cordon", subdirectory = "emitters/python" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vault_engine"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+pythonpath = ["src"]
