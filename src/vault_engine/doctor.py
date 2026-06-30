@@ -15,6 +15,8 @@ from .schema import (
     REQUIRED_FIELDS,
     SENSITIVITIES,
     STATUSES,
+    TASK_REQUIRED_FIELDS,
+    TASK_STATUSES,
 )
 from .vault import _coerce_list
 
@@ -115,7 +117,16 @@ def _iter_markdown_files(config: Config) -> list[Path]:
 
 
 def _validate_frontmatter(report: DoctorReport, relative_path: str, fm: dict) -> None:
-    for field_name in REQUIRED_FIELDS:
+    # A task carries its own lifecycle: a slimmer required-field set (no
+    # system/environment/sensitivity) and its own status vocabulary
+    # (open/active/parked/done/wontfix). Validate per-doc-type, exactly as the
+    # importer and set_task_status do — so the doctor stops emitting false errors
+    # on every task (the contract is emit-once; honor it everywhere).
+    is_task = str(fm.get("doc_type") or "") == "task"
+    required = TASK_REQUIRED_FIELDS if is_task else REQUIRED_FIELDS
+    statuses = TASK_STATUSES if is_task else STATUSES
+
+    for field_name in required:
         if fm.get(field_name) in (None, "", []):
             report.add(DoctorFinding(relative_path, "error", f"missing required field: {field_name}"))
 
@@ -129,7 +140,7 @@ def _validate_frontmatter(report: DoctorReport, relative_path: str, fm: dict) ->
 
     _validate_enum(report, relative_path, fm, "doc_type", DOC_TYPES)
     _validate_enum(report, relative_path, fm, "environment", ENVIRONMENTS)
-    _validate_enum(report, relative_path, fm, "status", STATUSES)
+    _validate_enum(report, relative_path, fm, "status", statuses)
     _validate_enum(report, relative_path, fm, "sensitivity", SENSITIVITIES)
 
     for list_field in ("tags", "related_projects", "related_assets"):
