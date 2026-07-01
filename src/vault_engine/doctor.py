@@ -18,7 +18,7 @@ from .schema import (
     TASK_REQUIRED_FIELDS,
     TASK_STATUSES,
 )
-from .vault import _coerce_list
+from .vault import _coerce_list, iter_markdown_files
 
 
 @dataclass
@@ -102,18 +102,8 @@ def run_doctor(config: Config, *, propose: bool = False) -> int:
 
 
 def _iter_markdown_files(config: Config) -> list[Path]:
-    paths: list[Path] = []
-    for subdir in config.indexed_dirs:
-        root = config.vault_path / subdir
-        if not root.is_dir():
-            continue
-        for path in root.rglob("*.md"):
-            if "00 Templates" in path.parts or "Templates" in path.parts:
-                continue
-            if path.name.startswith("_"):
-                continue
-            paths.append(path)
-    return sorted(paths)
+    # One walk + skip-rule owner for the index, the doctor, and the HQ manifest.
+    return list(iter_markdown_files(config.vault_path, config.indexed_dirs))
 
 
 def _validate_frontmatter(report: DoctorReport, relative_path: str, fm: dict) -> None:
