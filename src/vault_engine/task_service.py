@@ -248,6 +248,15 @@ def _create_task(
     doc_id = f"task-{slug}"
 
     vault = loader.config.vault_path
+    # Auto-colocate: a task that names exactly one existing project (via
+    # related_projects) but no explicit `project` still belongs with that project,
+    # not the cross-cutting bucket — so an agent that fills related_projects (the
+    # natural call) doesn't misfile a single-project task into 07 Backlog. Multi-
+    # project or unknown-project tasks stay cross-cutting.
+    if project is None and related_projects and len(related_projects) == 1:
+        only = related_projects[0]
+        if (vault / PROJECTS_DIR / only).is_dir():
+            project = only
     if project:
         project_dir = vault / PROJECTS_DIR / project
         if not project_dir.is_dir():

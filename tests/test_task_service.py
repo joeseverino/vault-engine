@@ -68,6 +68,21 @@ def test_add_cross_cutting_goes_to_the_bucket(task_vault: Path) -> None:
     assert result["project"] == "cross"
 
 
+def test_add_single_related_project_auto_colocates(task_vault: Path) -> None:
+    # Exactly one existing related project, no explicit project= → routes into
+    # that project's folder, not the cross-cutting bucket.
+    result = add_task(_loader(), title="Only cordon", related_projects=["cordon"])
+    assert result["relative_path"] == "01 Projects/cordon/tasks/task-only-cordon.md"
+    assert result["project"] == "cordon"
+
+
+def test_add_single_unknown_related_project_stays_cross_cutting(task_vault: Path) -> None:
+    # A single related project that isn't a real folder must not be colocated.
+    result = add_task(_loader(), title="Ghost proj", related_projects=["nope"])
+    assert result["relative_path"] == "07 Backlog/task-ghost-proj.md"
+    assert result["project"] == "cross"
+
+
 def test_add_rejects_unknown_project(task_vault: Path) -> None:
     result = add_task(_loader(), title="x", project="nope")
     assert result["ok"] is False
