@@ -6,7 +6,7 @@ Walks `<vault>/01 Projects/`, `<vault>/02 Infrastructure/`, `<vault>/03 Runbooks
 index for the configured `cache_seconds`. The shared parser in
 `frontmatter.py` avoids a PyYAML dependency and understands the constrained
 shape documented at
-`02 Infrastructure/Operations Metadata/Frontmatter Schema.md` in the vault.
+`02 Infrastructure/Severino HQ/Frontmatter Schema.md` in the vault.
 
 If `fd` (https://github.com/sharkdp/fd) is on PATH, it's used to walk the vault
 because it's much faster than Python's pathlib at scale. Otherwise we fall
@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import time
 import tomllib
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -26,6 +27,49 @@ from .config import Config
 from .frontmatter import split_frontmatter
 from .sections import Section, parse_sections
 from .sensitivity import Sensitivity
+
+
+# The one skip set for "which files are vault docs": templates, hidden
+# (_-prefixed) files, and the non-doc trees a vault picks up (git/obsidian
+# metadata, a static-mirror `source/`). The index, the doctor, and the HQ
+# manifest all consume iter_markdown_files, so these rules live in exactly one
+# place instead of three that had drifted apart.
+_SKIP_DIR_PARTS = ("00 Templates", "Templates", ".git", ".obsidian", "source")
+
+
+def _walk_md(root: Path) -> list[Path]:
+    """List `.md` files under `root`. Uses `fd` if available, else pathlib."""
+    fd = shutil.which("fd")
+    if fd:
+        try:
+            proc = subprocess.run(
+                [fd, "--type", "f", "--extension", "md", ".", str(root)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            return sorted(Path(line) for line in proc.stdout.splitlines() if line)
+        except (subprocess.SubprocessError, OSError):
+            pass  # fall through to the pathlib fallback
+    return sorted(root.rglob("*.md"))
+
+
+def iter_markdown_files(vault_path: Path, indexed_dirs) -> Iterator[Path]:
+    """Every vault-doc markdown file under the indexed dirs, skip rules applied
+    once. The single definition of "which files are vault docs" — the index, the
+    doctor, and the HQ manifest all consume this rather than re-implementing the
+    walk + skips (which had drifted apart into three sets)."""
+    for sub in indexed_dirs:
+        root = vault_path / sub
+        if not root.is_dir():
+            continue
+        for path in _walk_md(root):
+            if any(part in _SKIP_DIR_PARTS for part in path.parts):
+                continue
+            if path.name.startswith("_"):
+                continue
+            yield path
 
 
 @dataclass
@@ -135,35 +179,27 @@ class VaultLoader:
 
     def _build(self) -> Index:
         idx = Index()
-        for sub in self.config.indexed_dirs:
-            root = self.config.vault_path / sub
-            if not root.is_dir():
+        for path in iter_markdown_files(self.config.vault_path, self.config.indexed_dirs):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
                 continue
-            for path in self._walk(root):
-                if "00 Templates" in path.parts or "Templates" in path.parts:
+            fm, body, body_start_line = split_frontmatter(text)
+            if not fm:
+                continue
+            if not fm.get("doc_id"):
+                # Reference docs use a slim frontmatter shape
+                # (`type: reference, tags, created`) without doc_id.
+                # Synthesize one from the file path so they're searchable
+                # alongside HQ-shape runbooks and decision records.
+                if str(fm.get("type") or "").strip().lower() == "reference":
+                    slug = path.stem.lower().replace(" ", "-").replace("_", "-")
+                    fm["doc_id"] = f"ref-{slug}"
+                    fm.setdefault("doc_type", "reference")
+                    fm.setdefault("sensitivity", "public")
+                else:
                     continue
-                if path.name.startswith("_"):
-                    continue
-                try:
-                    text = path.read_text(encoding="utf-8", errors="replace")
-                except OSError:
-                    continue
-                fm, body, body_start_line = split_frontmatter(text)
-                if not fm:
-                    continue
-                if not fm.get("doc_id"):
-                    # Reference docs use a slim frontmatter shape
-                    # (`type: reference, tags, created`) without doc_id.
-                    # Synthesize one from the file path so they're searchable
-                    # alongside HQ-shape runbooks and decision records.
-                    if str(fm.get("type") or "").strip().lower() == "reference":
-                        slug = path.stem.lower().replace(" ", "-").replace("_", "-")
-                        fm["doc_id"] = f"ref-{slug}"
-                        fm.setdefault("doc_type", "reference")
-                        fm.setdefault("sensitivity", "public")
-                    else:
-                        continue
-                idx.add(self._mk_doc(path, fm, body, body_start_line))
+            idx.add(self._mk_doc(path, fm, body, body_start_line))
         idx.aliases, idx.invalid_aliases = self._load_aliases(idx)
         return idx
 
@@ -193,24 +229,6 @@ class VaultLoader:
             else:
                 invalid[alias] = doc_id
         return aliases, invalid
-
-    def _walk(self, root: Path) -> list[Path]:
-        """List `.md` files under `root`. Uses `fd` if available, else pathlib."""
-        fd = shutil.which("fd")
-        if fd:
-            try:
-                proc = subprocess.run(
-                    [fd, "--type", "f", "--extension", "md", ".", str(root)],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    check=True,
-                )
-                return sorted(Path(line) for line in proc.stdout.splitlines() if line)
-            except (subprocess.SubprocessError, OSError):
-                # Fall through to the pathlib fallback below.
-                pass
-        return sorted(root.rglob("*.md"))
 
     def _mk_doc(self, path: Path, fm: dict, body: str, body_start_line: int) -> Doc:
         return Doc(
