@@ -28,7 +28,6 @@ from .frontmatter import split_frontmatter
 from .sections import Section, parse_sections
 from .sensitivity import Sensitivity
 
-
 # The one skip set for "which files are vault docs": templates, hidden
 # (_-prefixed) files, and the non-doc trees a vault picks up (git/obsidian
 # metadata, a static-mirror `source/`). The index, the doctor, and the HQ
