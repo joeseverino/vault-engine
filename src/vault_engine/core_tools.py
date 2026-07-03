@@ -873,6 +873,10 @@ def register_core(mcp, ctx: ServerContext, *, build_parser=None) -> None:
         effort: str = "S",
         priority: str = "med",
         tags: list[str] | None = None,
+        problem: str | None = None,
+        fix: str | None = None,
+        principle: str | None = None,
+        source: str | None = None,
     ) -> dict[str, Any]:
         """Capture a new task as a vault file.
 
@@ -887,6 +891,13 @@ def register_core(mcp, ctx: ServerContext, *, build_parser=None) -> None:
             effort: S | M | L. Default S.
             priority: high | med | low. Default med.
             tags: Optional kebab-case tags. Default ["backlog"].
+            problem: Body **Problem.** section — what actually goes wrong.
+            fix: Body **Fix.** section — the concrete change.
+            principle: Body **Principle.** section — the rule it serves.
+            source: Body **Source.** section — where the item came from.
+
+        Pass the body sections here — one atomic filing, no hollow scaffold
+        needing a follow-up edit.
         """
         return task_service.add_task(
             loader,
@@ -896,6 +907,10 @@ def register_core(mcp, ctx: ServerContext, *, build_parser=None) -> None:
             effort=effort,
             priority=priority,
             tags=tags,
+            problem=problem,
+            fix=fix,
+            principle=principle,
+            source=source,
         )
 
 
