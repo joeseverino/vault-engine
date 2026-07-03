@@ -62,6 +62,31 @@ def test_add_to_project_colocates_and_links(task_vault: Path) -> None:
     assert "effort: M" in fm
 
 
+def test_add_task_body_sections_fill_at_write_time(task_vault: Path) -> None:
+    result = add_task(
+        _loader(),
+        title="Body at write time",
+        project="cordon",
+        problem="Scaffold-only filings go hollow.",
+        fix="Pass the sections in the one call.",
+        principle="One validated write path.",
+        source="Cohesion retro 2026-07-03.",
+    )
+    assert result["ok"] is True
+    body = (task_vault / result["relative_path"]).read_text()
+    assert "**Problem.** Scaffold-only filings go hollow." in body
+    assert "**Fix.** Pass the sections in the one call." in body
+    assert "**Principle.** One validated write path." in body
+    assert "**Source.** Cohesion retro 2026-07-03." in body
+
+
+def test_add_task_without_body_args_keeps_blank_scaffold(task_vault: Path) -> None:
+    result = add_task(_loader(), title="Still scaffolded", project="cordon")
+    body = (task_vault / result["relative_path"]).read_text()
+    assert "**Problem.** \n" in body
+    assert "**Fix.** \n" in body
+
+
 def test_add_cross_cutting_goes_to_the_bucket(task_vault: Path) -> None:
     result = add_task(_loader(), title="Add CI parity gate", related_projects=["cordon", "tools"])
     assert result["relative_path"] == "07 Backlog/task-add-ci-parity-gate.md"

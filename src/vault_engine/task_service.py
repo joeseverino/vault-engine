@@ -318,12 +318,21 @@ def add_task(
     effort: str = "S",
     priority: str = "med",
     tags: list[str] | None = None,
+    problem: str | None = None,
+    fix: str | None = None,
+    principle: str | None = None,
+    source: str | None = None,
 ) -> dict[str, Any]:
     """Author a new task file — in its project's tasks/ folder, or the bucket.
 
     A ``project`` colocates the task at ``01 Projects/<project>/tasks/`` and
     becomes its sole ``related_projects`` link; omitting it files a cross-cutting
     task in ``07 Backlog/`` (pass ``related_projects`` to record what it touches).
+
+    ``problem`` / ``fix`` / ``principle`` / ``source`` fill the body's sections
+    at write time — one atomic filing instead of a scaffold plus a follow-up
+    edit, so the board never accumulates hollow tasks. Omitted sections stay
+    blank scaffold headings.
     """
     return _create_task(
         loader,
@@ -333,7 +342,12 @@ def add_task(
         effort=effort,
         priority=priority,
         tags=tags,
-        body=_TASK_TEMPLATE_BODY,
+        body=(
+            f"**Problem.** {problem or ''}\n\n"
+            f"**Fix.** {fix or ''}\n\n"
+            f"**Principle.** {principle or ''}\n\n"
+            f"**Source.** {source or ''}\n"
+        ),
     )
 
 
