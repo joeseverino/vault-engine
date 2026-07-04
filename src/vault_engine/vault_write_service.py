@@ -35,19 +35,29 @@ def add_frontmatter(
     last_reviewed: str | None = None,
     profile: SchemaProfile = LABS_PROFILE,
 ) -> dict[str, Any]:
+    # A task rides its own contract: the lifecycle statuses and the task file
+    # shape, not the doc enums — so a `doc_type: task` retrofit validates (and
+    # writes) per doc-type instead of being rejected on doc-only fields.
+    is_task = doc_type == "task"
     errors: list[str] = []
     if doc_type not in profile.doc_types:
         errors.append(f"doc_type {doc_type!r} not in {sorted(profile.doc_types)}")
-    if environment not in profile.environments:
-        errors.append(
-            f"environment {environment!r} not in {sorted(profile.environments)}"
-        )
-    if status not in profile.statuses:
-        errors.append(f"status {status!r} not in {sorted(profile.statuses)}")
-    if sensitivity not in profile.sensitivities:
-        errors.append(
-            f"sensitivity {sensitivity!r} not in {sorted(profile.sensitivities)}"
-        )
+    if is_task:
+        if status not in profile.task_statuses:
+            errors.append(
+                f"status {status!r} not in {sorted(profile.task_statuses)} (task lifecycle)"
+            )
+    else:
+        if environment not in profile.environments:
+            errors.append(
+                f"environment {environment!r} not in {sorted(profile.environments)}"
+            )
+        if status not in profile.statuses:
+            errors.append(f"status {status!r} not in {sorted(profile.statuses)}")
+        if sensitivity not in profile.sensitivities:
+            errors.append(
+                f"sensitivity {sensitivity!r} not in {sorted(profile.sensitivities)}"
+            )
     if not doc_id.startswith(profile.doc_id_prefixes):
         errors.append(
             f"doc_id {doc_id!r} must start with one of "
@@ -87,6 +97,29 @@ def add_frontmatter(
                 f"{index.by_doc_id[doc_id].relative_path}"
             ),
         }
+
+    if is_task:
+        # Mirror task_service._create_task's shape — one task contract, whether
+        # the file is born via add_task or retrofitted here. Doc-only fields
+        # (system/environment/sensitivity/last_reviewed) are not written.
+        payload: dict = {
+            "doc_id": doc_id,
+            "title": title,
+            "doc_type": "task",
+            "status": status,
+            "related_projects": [str(project) for project in (related_projects or [])],
+            "effort": "S",
+            "priority": "med",
+            "created": last_reviewed or date.today().isoformat(),
+            "tags": [str(tag) for tag in (tags or ["backlog"])],
+        }
+        new_body = serialize_frontmatter(payload) + body
+        try:
+            atomic_write_text(full_path, new_body)
+        except OSError as exc:
+            return {"ok": False, "error": f"write failed: {exc}"}
+        loader.index(force=True)
+        return {"ok": True, "relative_path": relative_path, "doc_id": doc_id}
 
     payload = {
         "doc_id": doc_id,

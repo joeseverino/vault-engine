@@ -61,3 +61,46 @@ def test_write_path_validates_against_the_handed_profile(tmp_path, monkeypatch) 
     # The Education profile accepts the same doc through the same code path.
     accepted = add_frontmatter(loader, profile=EDUCATION_PROFILE, **common)
     assert accepted["ok"] is True
+
+
+def test_add_frontmatter_task_retrofit_rides_the_task_contract(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("SVMC_VAULT_PATH", str(tmp_path))
+    backlog = tmp_path / "07 Backlog"
+    backlog.mkdir()
+    (backlog / "loose-todo.md").write_text("# Loose todo\n", encoding="utf-8")
+    loader = VaultLoader(Config.from_env())
+
+    # A task retrofit validates against the task lifecycle, not the doc enums —
+    # this exact call used to be rejected on status.
+    result = add_frontmatter(
+        loader,
+        relative_path="07 Backlog/loose-todo.md",
+        doc_id="task-loose-todo",
+        title="Loose todo",
+        doc_type="task",
+        system="",
+        status="open",
+    )
+    assert result["ok"] is True
+    text = (backlog / "loose-todo.md").read_text()
+    assert "doc_type: task" in text
+    assert "status: open" in text
+    assert "effort: S" in text
+    assert "priority: med" in text
+    # Doc-only fields stay off the task shape.
+    assert "environment:" not in text
+    assert "sensitivity:" not in text
+
+    # A doc status on a task is still rejected — per-doc-type both ways.
+    (backlog / "bad.md").write_text("# Bad\n", encoding="utf-8")
+    rejected = add_frontmatter(
+        loader,
+        relative_path="07 Backlog/bad.md",
+        doc_id="task-bad",
+        title="Bad",
+        doc_type="task",
+        system="",
+        status="deprecated",
+    )
+    assert rejected["ok"] is False
+    assert "task lifecycle" in rejected["error"]
