@@ -93,6 +93,11 @@ class Doc:
     sections: list[Section] = field(default_factory=list)
                                # H2-chunked spans for section-scoped retrieval; see
                                # sections.py. Empty list == not yet parsed (cheap default).
+    extra: dict = field(default_factory=dict)
+                               # Every frontmatter key the engine doesn't consume,
+                               # values as parsed. One parser emits; a profile's
+                               # domain layer derives its fields from here instead
+                               # of re-reading files.
 
     def to_metadata(self) -> dict:
         """Lossless metadata view — never includes the body."""
@@ -109,7 +114,16 @@ class Doc:
             "related_projects": list(self.related_projects),
             "related_assets": list(self.related_assets),
             "obsidian_path": self.relative_path,
+            "extra": dict(self.extra),
         }
+
+
+# The frontmatter keys the engine consumes into named Doc fields; everything
+# else lands in Doc.extra verbatim (the lossless remainder).
+_CORE_FRONTMATTER_KEYS = frozenset({
+    "doc_id", "title", "doc_type", "system", "environment", "status",
+    "sensitivity", "last_reviewed", "tags", "related_projects", "related_assets",
+})
 
 
 def _coerce_list(value) -> list[str]:
@@ -230,6 +244,7 @@ class VaultLoader:
         return aliases, invalid
 
     def _mk_doc(self, path: Path, fm: dict, body: str, body_start_line: int) -> Doc:
+        extra = {k: v for k, v in fm.items() if k not in _CORE_FRONTMATTER_KEYS}
         return Doc(
             doc_id=str(fm["doc_id"]),
             title=str(fm.get("title") or fm["doc_id"]),
@@ -247,4 +262,5 @@ class VaultLoader:
             body=body,
             body_start_line=body_start_line,
             sections=parse_sections(body, body_start_line),
+            extra=extra,
         )

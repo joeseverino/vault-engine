@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-06
+
+### Added
+- `Doc.extra`: the index carries every frontmatter key the engine doesn't
+  consume, values as parsed, and `to_metadata()` includes it — one parser,
+  profile domain layers derive their fields from the index instead of
+  re-reading files.
+- The doctor is profile-parameterized: `validate_vault(config,
+  profile=<SchemaProfile>)` / `run_doctor(...)` validate any vault's
+  contract, not just the built-in default (which remains the default).
+
 ## [0.1.3] - 2026-06-28
 
 ### Fixed
