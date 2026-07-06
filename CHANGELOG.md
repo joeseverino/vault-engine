@@ -13,6 +13,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   consume, values as parsed, and `to_metadata()` includes it — one parser,
   profile domain layers derive their fields from the index instead of
   re-reading files.
+- `indexed_dirs` accepts `"."`: the vault root itself, non-recursive — 
+  top-level docs join the index without dragging in unindexed subtrees.
 - The doctor is profile-parameterized: `validate_vault(config,
   profile=<SchemaProfile>)` / `run_doctor(...)` validate any vault's
   contract, not just the built-in default (which remains the default).

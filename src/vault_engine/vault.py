@@ -60,6 +60,14 @@ def iter_markdown_files(vault_path: Path, indexed_dirs) -> Iterator[Path]:
     doctor, and the HQ manifest all consume this rather than re-implementing the
     walk + skips (which had drifted apart into three sets)."""
     for sub in indexed_dirs:
+        # "." = the vault root itself, non-recursive: top-level docs (a
+        # dashboard, a meta note) join the index without dragging in every
+        # unindexed subtree.
+        if sub == ".":
+            for path in sorted(vault_path.glob("*.md")):
+                if not path.name.startswith("_"):
+                    yield path
+            continue
         root = vault_path / sub
         if not root.is_dir():
             continue
