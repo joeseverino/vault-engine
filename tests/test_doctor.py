@@ -45,3 +45,30 @@ def test_standard_doc_rejects_a_task_status():
         "status": "parked",
     })
     assert any("status=" in e for e in errs)
+
+
+def test_validate_frontmatter_honors_a_custom_profile():
+    # The doctor is profile-parameterized: a doc valid under one profile is
+    # invalid under another, from the same call site.
+    from vault_engine.schema import SchemaProfile
+
+    research = SchemaProfile(
+        name="research",
+        doc_types=frozenset({"paper", "task"}),
+        environments=frozenset({"lab"}),
+        statuses=frozenset({"draft", "active"}),
+        sensitivities=frozenset({"public", "internal", "restricted"}),
+        doc_id_prefixes=("paper-", "task-"),
+        required_fields=("doc_id", "title", "doc_type", "status"),
+        task_statuses=frozenset({"open", "done"}),
+        task_required_fields=("doc_id", "title", "doc_type", "status"),
+        task_fields=("status", "created"),
+    )
+    fm = {"doc_id": "paper-x", "title": "X", "doc_type": "paper", "status": "active"}
+
+    report = DoctorReport(vault_path=Path("/vault"))
+    _validate_frontmatter(report, "x.md", fm, research)
+    assert [f.message for f in report.findings] == []
+
+    # The same doc under the default Labs profile is a foreign domain.
+    assert any("doc_type=" in e for e in _errors(fm))

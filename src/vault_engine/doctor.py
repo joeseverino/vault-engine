@@ -8,16 +8,7 @@ from pathlib import Path
 
 from .config import Config
 from .frontmatter import split_frontmatter
-from .schema import (
-    DOC_ID_PREFIXES,
-    DOC_TYPES,
-    ENVIRONMENTS,
-    REQUIRED_FIELDS,
-    SENSITIVITIES,
-    STATUSES,
-    TASK_REQUIRED_FIELDS,
-    TASK_STATUSES,
-)
+from .schema import LABS_PROFILE, SchemaProfile
 from .vault import _coerce_list, iter_markdown_files
 
 
@@ -44,7 +35,12 @@ class DoctorReport:
         self.findings.append(finding)
 
 
-def validate_vault(config: Config, *, propose: bool = False) -> DoctorReport:
+def validate_vault(
+    config: Config,
+    *,
+    profile: SchemaProfile = LABS_PROFILE,
+    propose: bool = False,
+) -> DoctorReport:
     report = DoctorReport(vault_path=config.vault_path)
     seen_doc_ids: dict[str, str] = {}
     for path in _iter_markdown_files(config):
@@ -78,12 +74,17 @@ def validate_vault(config: Config, *, propose: bool = False) -> DoctorReport:
                 ))
             else:
                 seen_doc_ids[doc_id] = relative_path
-        _validate_frontmatter(report, relative_path, fm)
+        _validate_frontmatter(report, relative_path, fm, profile)
     return report
 
 
-def run_doctor(config: Config, *, propose: bool = False) -> int:
-    report = validate_vault(config, propose=propose)
+def run_doctor(
+    config: Config,
+    *,
+    profile: SchemaProfile = LABS_PROFILE,
+    propose: bool = False,
+) -> int:
+    report = validate_vault(config, profile=profile, propose=propose)
     print(f"Vault: {report.vault_path}")
     print(f"Checked markdown files: {report.checked_files}")
     print(f"Indexed docs: {report.indexed_docs}")
@@ -106,32 +107,37 @@ def _iter_markdown_files(config: Config) -> list[Path]:
     return list(iter_markdown_files(config.vault_path, config.indexed_dirs))
 
 
-def _validate_frontmatter(report: DoctorReport, relative_path: str, fm: dict) -> None:
+def _validate_frontmatter(
+    report: DoctorReport,
+    relative_path: str,
+    fm: dict,
+    profile: SchemaProfile = LABS_PROFILE,
+) -> None:
     # A task carries its own lifecycle: a slimmer required-field set (no
     # system/environment/sensitivity) and its own status vocabulary
     # (open/active/parked/done/wontfix). Validate per-doc-type, exactly as the
     # importer and set_task_status do — so the doctor stops emitting false errors
     # on every task (the contract is emit-once; honor it everywhere).
     is_task = str(fm.get("doc_type") or "") == "task"
-    required = TASK_REQUIRED_FIELDS if is_task else REQUIRED_FIELDS
-    statuses = TASK_STATUSES if is_task else STATUSES
+    required = profile.task_required_fields if is_task else profile.required_fields
+    statuses = profile.task_statuses if is_task else profile.statuses
 
     for field_name in required:
         if fm.get(field_name) in (None, "", []):
             report.add(DoctorFinding(relative_path, "error", f"missing required field: {field_name}"))
 
     doc_id = str(fm.get("doc_id") or "")
-    if doc_id and not doc_id.startswith(DOC_ID_PREFIXES):
+    if doc_id and not doc_id.startswith(profile.doc_id_prefixes):
         report.add(DoctorFinding(
             relative_path,
             "error",
-            f"doc_id must start with one of: {', '.join(DOC_ID_PREFIXES)}",
+            f"doc_id must start with one of: {', '.join(profile.doc_id_prefixes)}",
         ))
 
-    _validate_enum(report, relative_path, fm, "doc_type", DOC_TYPES)
-    _validate_enum(report, relative_path, fm, "environment", ENVIRONMENTS)
+    _validate_enum(report, relative_path, fm, "doc_type", profile.doc_types)
+    _validate_enum(report, relative_path, fm, "environment", profile.environments)
     _validate_enum(report, relative_path, fm, "status", statuses)
-    _validate_enum(report, relative_path, fm, "sensitivity", SENSITIVITIES)
+    _validate_enum(report, relative_path, fm, "sensitivity", profile.sensitivities)
 
     for list_field in ("tags", "related_projects", "related_assets"):
         value = fm.get(list_field)
