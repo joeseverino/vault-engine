@@ -14,6 +14,11 @@ serializer, one durability rule), a **sensitivity gate** on document bodies, and
 a composable **MCP tool surface**. You own only: the vault's *schema profile* and
 any *domain-specific* tools.
 
+CLI and MCP are peer adapters over `GovernanceContext`; the CLI never shells
+through MCP and neither face owns business logic. Use `GovernanceContext.load`
+for deterministic composition. `ServerContext` and `Config.from_env()` remain
+compatibility entry points.
+
 `register_core(mcp, ctx)` registers these 18 generic tools onto a FastMCP server:
 
 ```
@@ -111,6 +116,16 @@ Rules that keep writes safe and the index honest:
   `restricted` bodies unless a local unlock is configured. Don't weaken this.
 - Tasks are a *second* profile within the vault (their own lifecycle and required
   fields). Set `task_statuses` / `task_required_fields` deliberately.
+- Domain field rules belong in `document_schemas` using generic
+  `DocumentSchema` / `FieldSchema` values. Never add a domain enum or field name
+  to the engine framework itself. New contract consumers use `contract_dict()`
+  and `fingerprint()`; do not broaden the legacy `as_dict()` wire shape.
+- New documents use `atomic_create_text`; updates use `atomic_write_text`; a
+  checked set uses `transactional_replace`. Do not rebuild those semantics in a
+  domain layer.
+- Reconciliations use `GovernancePlan` when review/apply can be separated, and
+  writes may emit `MutationReceipt` for audit or projection consumers. Receipts
+  are evidence, not state, and never contain bodies or secrets.
 
 ## Adding domain tools (only what the core doesn't cover)
 

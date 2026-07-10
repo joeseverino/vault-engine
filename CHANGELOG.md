@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- `GovernanceContext`, the transport-independent runtime shared by CLI, MCP,
+  automation, and tests. `ServerContext` remains a compatible subclass.
+- `Config.load(config_path, env=...)` for deterministic instance composition
+  without process-global environment mutation; `Config.from_env()` is unchanged.
+- `atomic_create_text`, an atomic create-if-absent primitive that cannot replace
+  an existing file even under concurrent writers. Task creation now uses it.
+- Generic `DocumentSchema` / `FieldSchema` profile extensions. The doctor applies
+  domain-supplied requiredness, type, choice, pattern, date, and integer-bound
+  rules without importing domain vocabulary into the engine.
+- Versioned complete schema contracts and stable SHA-256 profile fingerprints;
+  the legacy HQ-facing `SchemaProfile.as_dict()` remains unchanged.
+- `GovernancePlan`, `MutationReceipt`, `canonical_fingerprint`, and stale-plan
+  rejection contracts. Task creation is the first additive receipt producer.
+
 ## [0.2.0] - 2026-07-06
 
 ### Added
@@ -54,7 +69,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Initial release: `SchemaProfile`, lenient index, ranked section search, task
   ledger, atomic/transactional writes, sensitivity gate, and `register_core`.
 
-[Unreleased]: https://github.com/joeseverino/vault-engine/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/joeseverino/vault-engine/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/joeseverino/vault-engine/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/joeseverino/vault-engine/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/joeseverino/vault-engine/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/joeseverino/vault-engine/compare/v0.1.0...v0.1.1

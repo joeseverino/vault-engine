@@ -8,4 +8,4 @@ severino-edu-mcp) compose this engine against their own vault + profile; the
 engine itself carries no server or domain knowledge.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
