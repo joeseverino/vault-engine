@@ -17,15 +17,19 @@ composable MCP tool surface.
 ## What's in it
 
 - **`SchemaProfile`** — a vault's frontmatter contract (doc-types, statuses,
-  id-prefixes, the task lifecycle), with `as_dict()` (HQ/CI contract) and
-  `check_doc_enums()`. One engine, many profiles: a different vault is a
-  different profile, not a fork.
+  id-prefixes, task lifecycle, and composable per-document field rules), with a
+  versioned complete contract and deterministic fingerprint. One engine, many
+  profiles: a different vault is a different profile, not a fork.
 - **Index + search** — a lenient frontmatter index and ranked, section-scoped
   retrieval (`find_sections`) that returns menus, never raw bodies.
 - **Task ledger** — `doc_type: task` docs derived from the index, with a
   validated write path.
-- **Atomic writes** — a single serializer and `atomic_write_text` /
-  `transactional_replace`, so every writer shares one escaping + durability rule.
+- **Atomic writes** — a single serializer and `atomic_create_text` /
+  `atomic_write_text` / `transactional_replace`, so every writer shares one
+  escaping + durability rule and concurrent creates never replace each other.
+- **Governance contracts** — deterministic fingerprints, stale-safe reviewable
+  plans, and body-free mutation receipts shared by CLI, MCP, audit, and
+  projection consumers.
 - **`register_core(mcp, ctx)`** — composes the generic MCP tools (search, doc
   read with a sensitivity gate, project inventory, daily progress, the task
   ledger, schema-validated frontmatter writes) onto any FastMCP server.
@@ -43,17 +47,42 @@ The import package is `vault_engine`; the distribution on PyPI is
 
 ```python
 from vault_engine.config import Config
-from vault_engine.context import ServerContext
+from vault_engine.context import GovernanceContext
 from vault_engine.core_tools import register_core
 from mcp.server.fastmcp import FastMCP
 
-ctx = ServerContext(Config.from_env())          # your vault + profile
+ctx = GovernanceContext(Config.from_env())      # your vault + profile
 mcp = FastMCP("my-vault-mcp")
 register_core(mcp, ctx)                          # + your own tool groups
 ```
 
 The servers in the family own only their domain (writeup/topology tools, course
 tools) and a thin entrypoint; everything generic lives here.
+
+## One governance runtime, many adapters
+
+MCP is the governed AI surface, not an implementation dependency for the CLI.
+Both adapters compose the same in-process runtime:
+
+```text
+CLI ─┐
+     ├─> GovernanceContext ─> application services ─> governed stores
+MCP ─┘
+```
+
+Configuration is injectable for deterministic multi-vault composition:
+
+```python
+ctx = GovernanceContext.load(
+    "~/.config/my-vault/config.toml",
+    env={"SVMC_CACHE_SECONDS": "10"},
+    profile=MY_PROFILE,
+)
+```
+
+`ServerContext` remains a backward-compatible subclass. See
+[`docs/governance-runtime.md`](docs/governance-runtime.md) for the extension
+model and contracts.
 
 ## Security
 

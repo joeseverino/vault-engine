@@ -52,6 +52,29 @@ def atomic_write_text(path: Path, text: str) -> None:
                 staged.unlink()
 
 
+def atomic_create_text(path: Path, text: str) -> None:
+    """Durably create one text file without ever replacing an existing path.
+
+    The content is staged and fsynced beside the destination, then hard-linked
+    into place. ``link(2)`` is an atomic create-if-absent operation: concurrent
+    creators have one winner and every loser receives :class:`FileExistsError`.
+    This closes the check-then-replace race without weakening the shared write
+    substrate or leaving a partially written destination.
+    """
+    staged: Path | None = None
+    try:
+        staged = _stage_sibling(
+            path,
+            text.encode("utf-8"),
+            prefix=f".{path.name}.svmc-create-",
+        )
+        os.link(staged, path)
+    finally:
+        if staged is not None:
+            with suppress(FileNotFoundError):
+                staged.unlink()
+
+
 def transactional_replace(
     root: Path,
     replacements: dict[Path, str],
@@ -116,4 +139,4 @@ def transactional_replace(
                 path.unlink()
 
 
-__all__ = ["atomic_write_text", "transactional_replace"]
+__all__ = ["atomic_create_text", "atomic_write_text", "transactional_replace"]

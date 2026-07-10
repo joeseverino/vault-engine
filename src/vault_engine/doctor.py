@@ -139,6 +139,9 @@ def _validate_frontmatter(
     _validate_enum(report, relative_path, fm, "status", statuses)
     _validate_enum(report, relative_path, fm, "sensitivity", profile.sensitivities)
 
+    for message in profile.validate_document(fm):
+        report.add(DoctorFinding(relative_path, "error", message))
+
     for list_field in ("tags", "related_projects", "related_assets"):
         value = fm.get(list_field)
         if value is not None and not isinstance(_coerce_list(value), list):

@@ -20,7 +20,8 @@ from pathlib import Path
 from typing import Any
 
 from . import schema
-from .atomic_write import atomic_write_text
+from .atomic_write import atomic_create_text, atomic_write_text
+from .contracts import MutationReceipt, canonical_fingerprint
 from .frontmatter import (
     read_frontmatter,
     serialize_frontmatter,
@@ -296,17 +297,27 @@ def _create_task(
     }
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(file_path, serialize_frontmatter(frontmatter) + f"# {title}\n\n" + body)
+        atomic_create_text(file_path, serialize_frontmatter(frontmatter) + f"# {title}\n\n" + body)
     except OSError as exc:
         return {"ok": False, "error": f"write failed: {exc}"}
     loader.index(force=True)
-    return {
+    result = {
         "ok": True,
         "doc_id": doc_id,
         "relative_path": str(file_path.relative_to(vault)),
         "project": project or CROSS,
         "status": "open",
     }
+    result["receipt"] = MutationReceipt(
+        operation="task.create",
+        entity_type="task",
+        entity_id=doc_id,
+        changed_fields=tuple(frontmatter),
+        after_fingerprint=canonical_fingerprint(frontmatter),
+        affected_projections=("task_board", "daily_progress", "brief"),
+        metadata={"relative_path": result["relative_path"]},
+    ).as_dict()
+    return result
 
 
 def add_task(

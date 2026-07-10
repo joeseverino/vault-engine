@@ -1,28 +1,31 @@
-"""Server runtime context — the dependency bundle each tool group receives.
+"""Governance runtime — the dependency bundle every adapter receives.
 
-A :class:`ServerContext` carries the configured :class:`Config`, the active
-schema :class:`~vault_engine.schema.SchemaProfile`, and a lazily-built vault
-loader. Tool groups register as ``register(mcp, ctx)`` and pull what they need
-off it, so a server composes only the groups it wants.
+A :class:`GovernanceContext` carries the configured :class:`Config`, active
+schema :class:`~vault_engine.schema.SchemaProfile`, and lazily-built vault
+loader. MCP tool groups, CLIs, jobs, and tests pull the same governed services
+from it; adapters never call each other.
 
 The context is domain-agnostic: a domain server builds its own domain runtimes
 (e.g. a writeup runtime, a site-ops runtime) from ``ctx.config`` / ``ctx.loader``
-inside its own tool groups. The engine never knows about them.
+inside its own application layer. The engine never knows about them.
 """
 
 from __future__ import annotations
+
+from collections.abc import Mapping
+from pathlib import Path
 
 from .config import Config
 from .schema import LABS_PROFILE, SchemaProfile
 from .vault import VaultLoader
 
 
-class ServerContext:
-    """A vault's Config + active profile + lazily-built loader.
+class GovernanceContext:
+    """A vault's configuration, schema policy, and lazily-built services.
 
-    ``profile`` is the vault's frontmatter contract — the schema-validated write
-    tools check against it, so two servers differ only by the profile (and vault)
-    their context carries.
+    This is the shared in-process boundary for every adapter: an MCP server, CLI,
+    TUI, scheduled job, or test should enter the same governed services through
+    one context rather than reimplementing policy or calling another transport.
     """
 
     def __init__(self, config: Config, profile: SchemaProfile = LABS_PROFILE) -> None:
@@ -35,3 +38,18 @@ class ServerContext:
         if self._loader is None:
             self._loader = VaultLoader(self.config)
         return self._loader
+
+    @classmethod
+    def load(
+        cls,
+        config_path: str | Path | None = None,
+        *,
+        env: Mapping[str, str] | None = None,
+        profile: SchemaProfile = LABS_PROFILE,
+    ) -> GovernanceContext:
+        """Compose a governed runtime from deterministic configuration inputs."""
+        return cls(Config.load(config_path, env=env), profile=profile)
+
+
+class ServerContext(GovernanceContext):
+    """Backward-compatible MCP-era name for :class:`GovernanceContext`."""

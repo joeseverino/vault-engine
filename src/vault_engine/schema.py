@@ -19,8 +19,111 @@ nowhere else.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from datetime import date
+from types import MappingProxyType
+from typing import Any
+
+
+@dataclass(frozen=True)
+class FieldSchema:
+    """One domain-supplied frontmatter field rule.
+
+    The engine owns these generic mechanics; profiles own every domain value.
+    Rules intentionally describe the constrained YAML values the engine already
+    parses, keeping validation deterministic and dependency-free.
+    """
+
+    required: bool = False
+    kind: str = "string"
+    choices: frozenset[str] = frozenset()
+    pattern: str | None = None
+    minimum: int | None = None
+    maximum: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in {"string", "integer", "boolean", "list", "date"}:
+            raise ValueError(f"unknown field kind: {self.kind!r}")
+        if self.pattern is not None:
+            re.compile(self.pattern)
+        if (
+            self.minimum is not None
+            and self.maximum is not None
+            and self.minimum > self.maximum
+        ):
+            raise ValueError("field minimum cannot exceed maximum")
+
+    def validate(self, name: str, value: Any) -> list[str]:
+        if value in (None, "", []):
+            return [f"missing required field: {name}"] if self.required else []
+
+        errors: list[str] = []
+        parsed_integer: int | None = None
+        if self.kind == "integer":
+            try:
+                if isinstance(value, bool):
+                    raise ValueError
+                parsed_integer = int(str(value))
+            except ValueError:
+                errors.append(f"{name} must be an integer")
+        elif self.kind == "boolean" and not isinstance(value, bool):
+            errors.append(f"{name} must be a boolean")
+        elif self.kind == "list" and not isinstance(value, list):
+            errors.append(f"{name} must be a list")
+        elif self.kind == "date":
+            try:
+                date.fromisoformat(str(value))
+            except ValueError:
+                errors.append(f"{name} must be an ISO date (YYYY-MM-DD)")
+        elif self.kind == "string" and not isinstance(value, str):
+            errors.append(f"{name} must be a string")
+
+        text = str(value)
+        if self.choices and text not in self.choices:
+            errors.append(f"{name}={value!r} must be one of: {', '.join(sorted(self.choices))}")
+        if self.pattern and re.fullmatch(self.pattern, text) is None:
+            errors.append(f"{name}={value!r} does not match {self.pattern!r}")
+        if parsed_integer is not None:
+            if self.minimum is not None and parsed_integer < self.minimum:
+                errors.append(f"{name} must be at least {self.minimum}")
+            if self.maximum is not None and parsed_integer > self.maximum:
+                errors.append(f"{name} must be at most {self.maximum}")
+        return errors
+
+    def as_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {"kind": self.kind, "required": self.required}
+        if self.choices:
+            data["choices"] = sorted(self.choices)
+        if self.pattern is not None:
+            data["pattern"] = self.pattern
+        if self.minimum is not None:
+            data["minimum"] = self.minimum
+        if self.maximum is not None:
+            data["maximum"] = self.maximum
+        return data
+
+
+@dataclass(frozen=True)
+class DocumentSchema:
+    """Composable field contract for one ``doc_type``."""
+
+    fields: Mapping[str, FieldSchema]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "fields", MappingProxyType(dict(self.fields)))
+
+    def validate(self, data: Mapping[str, Any]) -> list[str]:
+        errors: list[str] = []
+        for name, rule in self.fields.items():
+            errors.extend(rule.validate(name, data.get(name)))
+        return errors
+
+    def as_dict(self) -> dict[str, Any]:
+        return {name: self.fields[name].as_dict() for name in sorted(self.fields)}
 
 
 @dataclass(frozen=True)
@@ -47,6 +150,19 @@ class SchemaProfile:
     # the loop with `closed:` (kept, not deleted) and associates to its project(s)
     # through the relation registry (related_projects), not a parallel id.
     task_fields: tuple[str, ...]
+    document_schemas: Mapping[str, DocumentSchema] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        unknown = set(self.document_schemas) - set(self.doc_types)
+        if unknown:
+            raise ValueError(
+                f"document schemas reference unknown doc_types: {sorted(unknown)}"
+            )
+        object.__setattr__(
+            self,
+            "document_schemas",
+            MappingProxyType(dict(self.document_schemas)),
+        )
 
     def as_dict(self) -> dict[str, list[str]]:
         """Return the profile as a deterministic, JSON-serializable dict.
@@ -74,6 +190,36 @@ class SchemaProfile:
             "status": self.statuses,
             "sensitivity": self.sensitivities,
         }
+
+    def validate_document(self, data: Mapping[str, Any]) -> list[str]:
+        """Validate the domain fields for the document's declared type."""
+        doc_type = str(data.get("doc_type") or "")
+        contract = self.document_schemas.get(doc_type)
+        return contract.validate(data) if contract is not None else []
+
+    def contract_dict(self) -> dict[str, Any]:
+        """Emit the complete, versioned profile contract deterministically.
+
+        ``as_dict`` remains the legacy HQ wire shape. New consumers should use
+        this representation, whose explicit version permits additive evolution.
+        """
+        return {
+            "contract_version": 1,
+            "name": self.name,
+            **self.as_dict(),
+            "task_fields": list(self.task_fields),
+            "document_schemas": {
+                name: self.document_schemas[name].as_dict()
+                for name in sorted(self.document_schemas)
+            },
+        }
+
+    def fingerprint(self) -> str:
+        """Return a stable SHA-256 identity for the complete profile contract."""
+        encoded = json.dumps(
+            self.contract_dict(), sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
     def check_doc_enums(self, text: str) -> list[str]:
         """Compare a human schema doc's enum lines to this profile's sets.
