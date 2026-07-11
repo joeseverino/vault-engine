@@ -8,14 +8,85 @@ through :func:`frontmatter.serialize_frontmatter`, and reports failures as
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Any
+from urllib.parse import urlparse
 
 from .atomic_write import atomic_write_text
+from .contracts import MutationReceipt, canonical_fingerprint
 from .frontmatter import serialize_frontmatter, split_frontmatter
 from .paths import validate_indexed_path
 from .schema import LABS_PROFILE, SchemaProfile
 from .vault import VaultLoader
+
+
+def update_document_link(
+    loader: VaultLoader,
+    doc_id: str,
+    label: str,
+    expected_href: str,
+    replacement_href: str,
+) -> dict[str, Any]:
+    """Replace one exact Markdown link in an indexed, non-restricted document.
+
+    This is deliberately link-shaped rather than an arbitrary body replacement:
+    the stable doc ID selects the file, both URLs must be explicit HTTP(S)
+    targets, and exactly one link label+href pair must match before the atomic
+    write occurs.
+    """
+    idx = loader.index(force=True)
+    doc = idx.by_doc_id.get((doc_id or "").strip())
+    if doc is None:
+        return {"ok": False, "error": f"unknown doc_id: {doc_id!r}"}
+    if str(doc.sensitivity).lower() == "restricted":
+        return {"ok": False, "error": "restricted document bodies cannot be mutated"}
+    if not label.strip():
+        return {"ok": False, "error": "link label required"}
+    for name, href in (("expected_href", expected_href), ("replacement_href", replacement_href)):
+        parsed = urlparse(href)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return {"ok": False, "error": f"{name} must be an absolute HTTP(S) URL"}
+
+    path = doc.path
+    text = path.read_text(encoding="utf-8")
+    frontmatter, body, body_start = split_frontmatter(text)
+    if frontmatter is None:
+        return {"ok": False, "error": "document has no frontmatter"}
+    pattern = re.compile(
+        rf"\[{re.escape(label)}\]\({re.escape(expected_href)}(?:\s+\"[^\"]*\")?\)"
+    )
+    matches = list(pattern.finditer(body))
+    if len(matches) != 1:
+        return {
+            "ok": False,
+            "error": f"expected exactly one matching link; found {len(matches)}",
+        }
+    new_body = pattern.sub(f"[{label}]({replacement_href})", body, count=1)
+    new_text = text[:body_start] + new_body
+    try:
+        atomic_write_text(path, new_text)
+    except OSError as exc:
+        return {"ok": False, "error": f"write failed: {exc}"}
+    loader.index(force=True)
+    receipt = MutationReceipt(
+        operation="document.link.update",
+        entity_type="document",
+        entity_id=doc.doc_id,
+        changed_fields=("body.link",),
+        after_fingerprint=canonical_fingerprint({"doc_id": doc.doc_id, "href": replacement_href}),
+        affected_projections=("vault_index",),
+        metadata={"label": label},
+    ).as_dict()
+    return {
+        "ok": True,
+        "doc_id": doc.doc_id,
+        "relative_path": doc.relative_path,
+        "label": label,
+        "old_href": expected_href,
+        "new_href": replacement_href,
+        "receipt": receipt,
+    }
 
 
 def add_frontmatter(
@@ -355,6 +426,7 @@ __all__ = [
     "add_frontmatter",
     "touch_reviewed",
     "update_frontmatter",
+    "update_document_link",
 ]
 
 

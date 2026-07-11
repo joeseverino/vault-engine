@@ -744,6 +744,30 @@ def register_core(mcp, ctx: ServerContext, *, build_parser=None) -> None:
 
 
     @mcp.tool()
+    def update_document_link(
+        doc_id: str,
+        label: str,
+        expected_href: str,
+        replacement_href: str,
+    ) -> dict[str, Any]:
+        """Atomically replace one exact Markdown link in an indexed document.
+
+        This tool is intentionally narrower than body editing: a stable doc_id
+        selects the document, exactly one label+href pair must match, both URLs
+        must be absolute HTTP(S) targets, and restricted documents are refused.
+
+        Args:
+            doc_id: Stable indexed document identifier.
+            label: Exact visible Markdown link label.
+            expected_href: Exact current absolute URL.
+            replacement_href: New absolute URL.
+        """
+        return vault_write_service.update_document_link(
+            loader, doc_id, label, expected_href, replacement_href
+        )
+
+
+    @mcp.tool()
     def update_frontmatter(
         relative_path: str,
         touch_last_reviewed: bool = False,
@@ -965,5 +989,4 @@ def register_core(mcp, ctx: ServerContext, *, build_parser=None) -> None:
             doc_id: Task id or slug.
         """
         return task_service.delete_task(loader, doc_id)
-
 
