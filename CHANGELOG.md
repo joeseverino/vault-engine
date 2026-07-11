@@ -7,6 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- `update_document_link`, an exact-match, schema-indexed Markdown link writer that refuses restricted documents and arbitrary body replacement.
 - `GovernanceContext`, the transport-independent runtime shared by CLI, MCP,
   automation, and tests. `ServerContext` remains a compatible subclass.
 - `Config.load(config_path, env=...)` for deterministic instance composition
