@@ -56,7 +56,7 @@ mcp = FastMCP("my-vault-mcp")
 register_core(mcp, ctx)                          # + your own tool groups
 ```
 
-The servers in the family own only their domain (writeup/topology tools, course
+The servers in the family own only their domain (writeup tools, course
 tools) and a thin entrypoint; everything generic lives here.
 
 ## One governance runtime, many adapters

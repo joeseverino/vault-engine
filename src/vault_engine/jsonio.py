@@ -6,15 +6,13 @@ Three distinct contracts, each spelled exactly once so call sites can't drift:
   subcommand that prints JSON goes through it).
 * :func:`canonical` — the deterministic, sorted form for *committed* artifacts
   another system diffs and validates against (the frontmatter schema HQ
-  consumes; the topology contract).
+  consumes).
 * :func:`loads` / :func:`load_file` — parsing with one consistent, source-
-  labelled error (the topology inventory and the drift guards' mirror payload
-  both parse through these, so a malformed-JSON failure reads the same
-  everywhere).
+  labelled error, so a malformed-JSON failure reads the same everywhere.
 
 Serializing is centralised; *parsing into typed objects* still lives with each
-owner (a TOML config, constrained-YAML frontmatter, the markdown tech catalog,
-the JSON topology inventory) — those are genuinely different sources and are
+owner (a TOML config, constrained-YAML frontmatter, the markdown tech catalog);
+those are genuinely different sources and are
 deliberately not collapsed here. This module owns only the JSON mechanics they
 share.
 """
@@ -41,8 +39,8 @@ def canonical(obj: Any) -> str:
     """Deterministic, sorted, indented form for committed/validated artifacts.
 
     Use where the JSON is a stable diff target another system commits and
-    checks against (e.g. ``schema --json`` consumed by HQ, the topology
-    contract). Sorting keys keeps the output byte-stable across runs.
+    checks against (e.g. ``schema --json`` consumed by HQ). Sorting keys keeps
+    the output byte-stable across runs.
     """
     return json.dumps(obj, indent=2, sort_keys=True)
 

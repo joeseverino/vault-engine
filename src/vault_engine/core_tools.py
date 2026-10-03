@@ -47,10 +47,9 @@ def register_core(mcp, ctx: ServerContext, *, build_parser=None) -> None:
 
     # ----- helpers ----------------------------------------------------------------
 
-    # Markdown table parsing is single-sourced in tabular.py (the parse-side mirror
-    # of its one-renderer rule); _split_table_row / _is_table_separator are the
-    # imported split_row / is_separator, kept under these local names for the
-    # Quick Index reader below.
+    # Markdown table parsing is single-sourced in tabular.py; _split_table_row /
+    # _is_table_separator are its split_row / is_separator under local names for
+    # the Quick Index reader below.
 
 
     def _wiki_targets(text: str) -> list[str]:

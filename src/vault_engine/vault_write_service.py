@@ -379,10 +379,8 @@ def update_frontmatter(
 def touch_reviewed(loader: VaultLoader, relative_path: str) -> dict[str, Any]:
     """Set one indexed vault doc's ``last_reviewed`` to today, skipping reindex.
 
-    This is the hot path for the drift guards (cf-dns / adguard / nginx /
-    ts-acl), which call it after every successful pull. It deliberately avoids
-    the ``loader.index(force=True)`` rebuild that the general writers pay for,
-    since the guards only need the file on disk updated.
+    Avoids the ``loader.index(force=True)`` rebuild the general writers pay for;
+    only the file on disk changes.
     """
     full_path, path_error = validate_indexed_path(loader.config, relative_path)
     if path_error:
