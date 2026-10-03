@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0](https://github.com/joeseverino/vault-engine/compare/v0.3.0...v1.0.0) (2026-10-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* Config.topology_path and Config.infra_datasets_path are removed.
+
+### Features
+
+* add safe document link updates ([#13](https://github.com/joeseverino/vault-engine/issues/13)) ([2fb9c22](https://github.com/joeseverino/vault-engine/commit/2fb9c22da78e538a6446411670c22a7fcc52f8ef))
+* drop topology and infra config, no runtime deps, release-please ([#23](https://github.com/joeseverino/vault-engine/issues/23)) ([4c24fef](https://github.com/joeseverino/vault-engine/commit/4c24fef63e696829ea1c538b0c2baab4c2f5fa4c))
+
 ## [0.3.0] - 2026-07-09
 
 ### Added
