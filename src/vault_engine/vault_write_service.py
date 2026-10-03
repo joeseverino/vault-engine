@@ -147,7 +147,7 @@ def add_frontmatter(
             "ok": False,
             "error": (
                 "file already starts with `---` (existing frontmatter); "
-                "use `update_frontmatter` instead."
+                "update it instead of adding a block."
             ),
         }
 
@@ -293,7 +293,7 @@ def update_frontmatter(
     if frontmatter is None:
         return {
             "ok": False,
-            "error": "file has no frontmatter — call `add_frontmatter` instead.",
+            "error": "file has no frontmatter; add a block first.",
         }
 
     changed: dict[str, Any] = {}
@@ -376,6 +376,104 @@ def update_frontmatter(
     }
 
 
+def set_frontmatter(
+    loader: VaultLoader,
+    relative_path: str,
+    *,
+    doc_id: str | None = None,
+    title: str | None = None,
+    doc_type: str | None = None,
+    system: str | None = None,
+    environment: str | None = None,
+    status: str | None = None,
+    sensitivity: str | None = None,
+    tags: list[str] | None = None,
+    add_tags: list[str] | None = None,
+    remove_tags: list[str] | None = None,
+    related_projects: list[str] | None = None,
+    add_related_projects: list[str] | None = None,
+    remove_related_projects: list[str] | None = None,
+    related_assets: list[str] | None = None,
+    add_related_assets: list[str] | None = None,
+    remove_related_assets: list[str] | None = None,
+    last_reviewed: str | None = None,
+    touch_last_reviewed: bool = False,
+    profile: SchemaProfile = LABS_PROFILE,
+) -> dict[str, Any]:
+    """Create the frontmatter block when the file has none, else update it.
+
+    Create needs doc_id, title, doc_type and system, and takes only whole-list
+    values (``add_*`` lists are merged in; ``remove_*`` is refused). Update keeps
+    every omitted field, and doc_id is immutable.
+    """
+    full_path, path_error = validate_indexed_path(loader.config, relative_path)
+    if path_error:
+        return path_error
+    assert full_path is not None
+    existing, _body, _start = split_frontmatter(full_path.read_text(encoding="utf-8"))
+
+    if existing is None:
+        absent = [
+            name
+            for name, value in (("doc_id", doc_id), ("title", title), ("doc_type", doc_type), ("system", system))
+            if not value
+        ]
+        if absent:
+            return {"ok": False, "error": f"no frontmatter yet; creating one needs {', '.join(absent)}"}
+        if remove_tags or remove_related_projects or remove_related_assets:
+            return {"ok": False, "error": "no frontmatter yet; remove_* lists only apply to an update"}
+
+        def merged(base: list[str] | None, extra: list[str] | None) -> list[str] | None:
+            if base is None and extra is None:
+                return None
+            return _apply_list_op([str(v) for v in base or []], None, extra, None)
+
+        return add_frontmatter(
+            loader,
+            relative_path,
+            doc_id,
+            title,
+            doc_type,
+            system,
+            environment=environment or "other",
+            status=status or "active",
+            sensitivity=sensitivity or "internal",
+            tags=merged(tags, add_tags),
+            related_projects=merged(related_projects, add_related_projects),
+            related_assets=merged(related_assets, add_related_assets),
+            last_reviewed=last_reviewed,
+            profile=profile,
+        )
+
+    if doc_id is not None and existing.get("doc_id") != doc_id:
+        return {
+            "ok": False,
+            "error": f"doc_id is immutable (file has {existing.get('doc_id')!r}, got {doc_id!r})",
+        }
+    return update_frontmatter(
+        loader,
+        relative_path,
+        touch_last_reviewed=touch_last_reviewed,
+        last_reviewed=last_reviewed,
+        title=title,
+        doc_type=doc_type,
+        system=system,
+        environment=environment,
+        status=status,
+        sensitivity=sensitivity,
+        set_tags=tags,
+        add_tags=add_tags,
+        remove_tags=remove_tags,
+        set_related_projects=related_projects,
+        add_related_projects=add_related_projects,
+        remove_related_projects=remove_related_projects,
+        set_related_assets=related_assets,
+        add_related_assets=add_related_assets,
+        remove_related_assets=remove_related_assets,
+        profile=profile,
+    )
+
+
 def touch_reviewed(loader: VaultLoader, relative_path: str) -> dict[str, Any]:
     """Set one indexed vault doc's ``last_reviewed`` to today, skipping reindex.
 
@@ -393,7 +491,7 @@ def touch_reviewed(loader: VaultLoader, relative_path: str) -> dict[str, Any]:
     if frontmatter is None:
         return {
             "ok": False,
-            "error": "file has no frontmatter — call `add_frontmatter` instead.",
+            "error": "file has no frontmatter; add a block first.",
         }
     reviewed = date.today().isoformat()
     if frontmatter.get("last_reviewed") == reviewed:
@@ -422,6 +520,7 @@ def touch_reviewed(loader: VaultLoader, relative_path: str) -> dict[str, Any]:
 
 __all__ = [
     "add_frontmatter",
+    "set_frontmatter",
     "touch_reviewed",
     "update_frontmatter",
     "update_document_link",

@@ -30,9 +30,10 @@ composable MCP tool surface.
 - **Governance contracts** — deterministic fingerprints, stale-safe reviewable
   plans, and body-free mutation receipts shared by CLI, MCP, audit, and
   projection consumers.
-- **`register_core(mcp, ctx)`** — composes the generic MCP tools (search, doc
-  read with a sensitivity gate, project inventory, daily progress, the task
-  ledger, schema-validated frontmatter writes) onto any FastMCP server.
+- **`register_core(mcp, vaults)`**: registers the 8 core MCP tools once (find,
+  gated doc read, frontmatter and link writes, the task board and writes,
+  recent changes, daily progress), each routed by a `vault` argument to that
+  vault's config, schema profile and sensitivity gate.
 
 ## Install
 
@@ -49,15 +50,17 @@ The import package is `vault_engine`; the distribution on PyPI is
 from vault_engine.config import Config
 from vault_engine.context import GovernanceContext
 from vault_engine.core_tools import register_core
+from vault_engine.schema import EDUCATION_PROFILE
 from mcp.server.fastmcp import FastMCP
 
-ctx = GovernanceContext(Config.from_env())      # your vault + profile
+labs = GovernanceContext(Config.load("labs.toml"))
+edu = GovernanceContext(Config.load("edu.toml"), profile=EDUCATION_PROFILE)
 mcp = FastMCP("my-vault-mcp")
-register_core(mcp, ctx)                          # + your own tool groups
+register_core(mcp, {"labs": labs, "edu": edu}, default="labs")   # + your own tool groups
 ```
 
-The servers in the family own only their domain (writeup tools, course
-tools) and a thin entrypoint; everything generic lives here.
+Domain tool groups register beside it with a single vault's context; everything
+generic lives here.
 
 ## One governance runtime, many adapters
 

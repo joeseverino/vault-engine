@@ -8,12 +8,12 @@ shape in either renderer — call :func:`find_sections` / :func:`read_section`.
 
 - :func:`section_menu` — the two-tier menu line for one hit (heading, slug,
   one-line summary; never a body).
-- :func:`find_sections` — ranked menu over the vault, the shape `find_runbook`
+- :func:`find_sections`: ranked menu over the vault, the shape `find` (relevance)
   returns minus the server-only Quick Index routing hint.
 - :func:`read_section` — one section span (or whole body), honoring the
   sensitivity gate. Restricted bodies are withheld here with no interactive
   unlock — that one-shot local unlock is a `read_doc` (MCP) affordance, not a
-  shell-pipe one, exactly as `search_body` already withholds restricted.
+  shell-pipe one, exactly as `find` (text) already withholds restricted.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from .sensitivity import Sensitivity, advisory, body_is_releasable
 from .vault import Doc, VaultLoader
 from .vault_query_service import doc_to_hit
 
-# Match find_runbook's clamp so the CLI and MCP cap the menu identically.
+# Match the MCP find clamp so the CLI and MCP cap the menu identically.
 _MAX_LIMIT = 25
 
 
@@ -52,7 +52,7 @@ def find_sections(loader: VaultLoader, query: str, *, limit: int = 5) -> dict[st
     """Ranked section menu over the indexed vault.
 
     The canonical payload — ``{query, indexed_doc_count, hits}`` — both the MCP
-    `find_runbook` and the CLI `find` render. Each hit is the slim doc
+    MCP `find` and the CLI `find` render. Each hit is the slim doc
     projection plus its best-matching section line; no bodies are returned.
     """
     idx = loader.index()
