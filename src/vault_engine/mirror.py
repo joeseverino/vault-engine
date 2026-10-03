@@ -1,15 +1,11 @@
 """Generated marked-region writes inside a vault note (the "mirror" mechanic).
 
 A generated block is delimited by HTML-comment markers, so a re-run rewrites
-only that span and never touches the human-authored text around it — the
-anti-clobber guarantee the drift-guard doc tables already rely on. This module
+only that span and never touches the human-authored text around it. This module
 owns only the *mechanic* (find/replace/insert a span); it never owns a path.
 Schema-specific writers (``daily_write``) name their own region and file shape
 and call in here, so the idempotent-region logic lives in one place rather than
 being re-copied per feature.
-
-``replace_region`` is shared with ``infra_datasets`` (one implementation, two
-marker namespaces: ``INFRA-DATA`` for generated tables, ``MIRROR`` here).
 """
 
 from __future__ import annotations

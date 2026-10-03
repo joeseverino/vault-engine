@@ -1,24 +1,36 @@
 name: publish
 
-# Publish severino-vault-engine to PyPI via Trusted Publishing (OIDC).
-# No API token: PyPI verifies this workflow's identity through the
-# `pypi` environment. Triggered when a GitHub Release is published.
+# release-please (cordon's reusable release) keeps one release PR; merging it
+# tags vX.Y.Z, and the same run builds and publishes to PyPI by Trusted
+# Publishing. The filename is the trusted-publisher identity, so it stays.
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
+  cordon:
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: joeseverino/cordon/.github/workflows/cordon-release.yml@v2
+    with:
+      release-type: manifest
+
   build:
     name: Build distributions
+    needs: cordon
+    if: ${{ needs.cordon.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Build sdist + wheel
         run: uv build

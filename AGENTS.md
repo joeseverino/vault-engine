@@ -76,7 +76,6 @@ the agent will most often set:
 | `SVMC_CONFIG` | path to the TOML config file | a per-user default |
 | `SVMC_VAULT_PATH` | vault root | `~/Documents/vault` |
 | `SVMC_DAILY_NOTES_DIR` | daily-note subdir | `00 Inbox/Daily Note` |
-| `SVMC_TOPOLOGY_PATH` | optional topology JSON | `<vault>/02 Infrastructure/Topology/topology.json` |
 
 Register the server with the MCP host by passing these in the host's `env`
 block — do not bake machine-specific paths into the package.
@@ -173,6 +172,9 @@ Mirror this repo's setup so a downstream package is release-grade:
   the publisher under your project's *Publishing* settings on PyPI, and keep the
   publish job's permissions to `id-token: write` only. See this repo's
   `.github/workflows/publish.yml`.
+- **Releases by release-please.** Conventional Commit titles drive one standing
+  release PR; merging it tags `vX.Y.Z` and the same `publish.yml` run publishes.
+  Never bump the version or edit `CHANGELOG.md` by hand.
 - **Attestations on.** `pypa/gh-action-pypi-publish` emits PEP 740 provenance by
   default — leave it on.
 - **Pin actions to SHAs** and let Dependabot bump them (`.github/dependabot.yml`).

@@ -72,8 +72,6 @@ class Config:
     indexed_dirs: tuple[str, ...]
     daily_notes_dir: str
     aliases_path: Path
-    topology_path: Path
-    infra_datasets_path: Path
     metadata_url: str
     cache_seconds: int
     allow_secret_adjacent_unlock: bool
@@ -138,14 +136,6 @@ class Config:
         aliases = _section(data, "aliases")
         aliases_default = vault_path / ".svmc" / "aliases.toml"
 
-        topology = _section(data, "topology")
-        topology_default = (
-            vault_path / "02 Infrastructure" / "Topology" / "topology.json"
-        )
-
-        infra = _section(data, "infra_datasets")
-        infra_default = vault_path / "02 Infrastructure" / "_infra-datasets.json"
-
         return cls(
             vault_path=vault_path,
             daily_notes_dir=str(
@@ -158,16 +148,6 @@ class Config:
                 values,
                 "SVMC_ALIASES_PATH",
                 _value(aliases, "path", aliases_default),
-            ),
-            topology_path=_env_path(
-                values,
-                "SVMC_TOPOLOGY_PATH",
-                _value(topology, "path", topology_default),
-            ),
-            infra_datasets_path=_env_path(
-                values,
-                "SVMC_INFRA_DATASETS_PATH",
-                _value(infra, "path", infra_default),
             ),
             indexed_dirs=_env_list(values, "SVMC_INDEXED_DIRS", tuple(indexed_dirs)),
             metadata_url=values.get(
