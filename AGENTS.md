@@ -19,17 +19,21 @@ through MCP and neither face owns business logic. Use `GovernanceContext.load`
 for deterministic composition. `ServerContext` and `Config.from_env()` remain
 compatibility entry points.
 
-`register_core(mcp, ctx)` registers these 18 generic tools onto a FastMCP server:
+`register_core(mcp, vaults, default=...)` registers these 8 tools once onto a
+FastMCP server. Each takes a `vault` argument (a `Literal` of the configured
+names) and runs against that vault's context, so schema validation and the
+sensitivity gate stay per vault:
 
 ```
-find_runbook  lookup_system  search_body  read_doc  get_runbook
-inventory_for_project  recent_changes  daily_progress  promote_note
-task_board  task_projects  add_task  set_task_status  delete_task
-reconcile_tasks  add_frontmatter  update_frontmatter  describe_commands
+find (by: relevance | system | project | text)   read_doc
+set_frontmatter   update_link   task_board   task_write (add | status | promote | delete)
+recent_changes   daily_progress
 ```
 
-If the human's need is covered by these, you write **almost no tool code** — you
-configure a vault and a profile and call `register_core`. That is the success
+Resources: `vault://{vault}/quick-index` and `vault://{vault}/doc/{doc_id}`.
+
+If the human's need is covered by these, you write **almost no tool code**: you
+configure vaults and profiles and call `register_core`. That is the success
 path. Resist adding tools that duplicate the above.
 
 ## The minimal conformant server
@@ -46,7 +50,7 @@ from vault_engine.core_tools import register_core
 
 mcp = FastMCP("myvault-mcp")
 ctx = ServerContext(Config.from_env())   # vault + active schema profile
-register_core(mcp, ctx)                   # the 18 generic tools
+register_core(mcp, {"main": ctx})         # the 8 core tools, vault="main"
 
 def main() -> None:
     mcp.run()                             # stdio transport

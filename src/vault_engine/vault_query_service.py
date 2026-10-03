@@ -81,6 +81,16 @@ def recent_changes(
     }
 
 
+def _empty_search(query: str) -> dict[str, Any]:
+    return {
+        "query": query,
+        "doc_count": 0,
+        "total_match_count": 0,
+        "excluded": {"restricted_skipped": 0, "secret_adjacent_skipped": 0, "unindexed_skipped": 0},
+        "hits_by_doc": [],
+    }
+
+
 def search_body(
     loader: VaultLoader,
     query: str,
@@ -96,7 +106,7 @@ def search_body(
     """
     query = (query or "").strip()
     if not query:
-        return {"query": query, "hits_by_doc": [], "match_count": 0}
+        return _empty_search(query)
 
     rg = shutil.which("rg")
     if not rg:
@@ -112,7 +122,7 @@ def search_body(
     indexed_roots = [vault_root / sub for sub in loader.config.indexed_dirs]
     indexed_roots = [r for r in indexed_roots if r.is_dir()]
     if not indexed_roots:
-        return {"query": query, "hits_by_doc": [], "match_count": 0}
+        return _empty_search(query)
 
     cmd = [
         rg,
