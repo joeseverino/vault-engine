@@ -6,11 +6,9 @@ against that vault's GovernanceContext (config, schema profile, loader), so the
 sensitivity gate and schema validation stay per vault.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol, TypeVar, cast
 
 from . import (
     daily_notes,
@@ -32,12 +30,23 @@ from .sections import resolve_section
 from .sensitivity import Sensitivity, advisory, body_is_releasable
 from .tabular import is_separator as _is_table_separator
 from .tabular import split_row as _split_table_row
-from .vault import Doc, _normalize_alias
+from .vault import Doc, Index, _normalize_alias
 from .vault_query_service import doc_to_hit as _hit_to_dict
 
 QUICK_INDEX_DOC_ID = "report-playbook-mcp-index"
 QUICK_INDEX_RESOURCE_TEMPLATE = "vault://{vault}/quick-index"
 DOC_RESOURCE_TEMPLATE_URI = "vault://{vault}/doc/{doc_id}"
+
+_Tool = TypeVar("_Tool", bound=Callable[..., Any])
+
+
+class _McpServer(Protocol):
+    def tool(self) -> Callable[[_Tool], _Tool]: ...
+
+    def resource(
+        self, uri: str, *, name: str, title: str, description: str, mime_type: str
+    ) -> Callable[[_Tool], _Tool]: ...
+
 
 FindMode = Literal["relevance", "system", "project", "text"]
 TaskAction = Literal["add", "status", "promote", "delete"]
@@ -73,7 +82,7 @@ def _wiki_targets(text: str) -> list[str]:
     return targets
 
 
-def _doc_for_reference(idx, reference: str) -> Doc | None:
+def _doc_for_reference(idx: Index, reference: str) -> Doc | None:
     clean = reference.strip().strip("`")
     if not clean:
         return None
@@ -91,7 +100,7 @@ def _doc_for_reference(idx, reference: str) -> Doc | None:
     return None
 
 
-def _quick_index_matches(idx, query: str, *, limit: int = 3) -> list[dict[str, Any]]:
+def _quick_index_matches(idx: Index, query: str, *, limit: int = 3) -> list[dict[str, Any]]:
     """High-signal Quick Index table rows matching the query (a routing hint)."""
     quick_index_doc = idx.by_doc_id.get(QUICK_INDEX_DOC_ID)
     if quick_index_doc is None:
@@ -181,7 +190,9 @@ def _find_project(ctx: GovernanceContext, query: str) -> dict[str, Any]:
     return {"query": query, "match_count": len(matches), "hits": [_hit_to_dict(d) for d in matches]}
 
 
-def _lookup_doc(ctx: GovernanceContext, identifier: str) -> tuple[Doc | None, dict[str, str] | None]:
+def _lookup_doc(
+    ctx: GovernanceContext, identifier: str
+) -> tuple[Doc | None, dict[str, str] | None]:
     """Resolve a stable doc_id, then a configured alias, then an exact title/path."""
     idx = ctx.loader.index()
     doc = idx.by_doc_id.get(identifier)
@@ -261,10 +272,14 @@ def _secret_adjacent_unlock(ctx: GovernanceContext, doc_id: str, title: str) -> 
         keychain_account=config.secret_unlock_keychain_account,
     )
     if not unlock_hash:
-        return SecretUnlockResult(False, "no_unlock_hash", _SECRET_UNLOCK_MESSAGES["no_unlock_hash"])
+        return SecretUnlockResult(
+            False, "no_unlock_hash", _SECRET_UNLOCK_MESSAGES["no_unlock_hash"]
+        )
     phrase = prompt_unlock_phrase(doc_id, title)
     if phrase is None:
-        return SecretUnlockResult(False, "prompt_unavailable", _SECRET_UNLOCK_MESSAGES["prompt_unavailable"])
+        return SecretUnlockResult(
+            False, "prompt_unavailable", _SECRET_UNLOCK_MESSAGES["prompt_unavailable"]
+        )
     if not verify_unlock_phrase(phrase, unlock_hash):
         return SecretUnlockResult(False, "failed", _SECRET_UNLOCK_MESSAGES["failed"])
     return SecretUnlockResult(True, "released", "Local unlock succeeded for this request only.")
@@ -307,7 +322,9 @@ def _read_doc(
         if not include_restricted:
             return _withheld_response(base, "not_requested")
         unlock = _secret_adjacent_unlock(ctx, doc.doc_id, doc.title)
-        audit_secret_unlock(ctx.config.secret_unlock_audit_log, doc_id=doc.doc_id, result=unlock.result)
+        audit_secret_unlock(
+            ctx.config.secret_unlock_audit_log, doc_id=doc.doc_id, result=unlock.result
+        )
         base["unlock"] = unlock.to_dict()
         if not unlock.allowed:
             return _withheld_response(base, unlock.result)
@@ -373,16 +390,13 @@ def _task_write(
 ) -> dict[str, Any]:
     loader = ctx.loader
 
-    def missing(*names: str) -> dict[str, Any] | None:
-        values = {"title": title, "doc_id": doc_id, "status": status, "note_path": note_path}
-        absent = [n for n in names if not values[n]]
-        if absent:
-            return {"ok": False, "error": f"action {action!r} requires {', '.join(absent)}"}
-        return None
+    def missing(**required: str | None) -> dict[str, Any]:
+        absent = [name for name, value in required.items() if not value]
+        return {"ok": False, "error": f"action {action!r} requires {', '.join(absent)}"}
 
     if action == "add":
-        if err := missing("title"):
-            return err
+        if not title:
+            return missing(title=title)
         return task_service.add_task(
             loader,
             title=title,
@@ -397,18 +411,18 @@ def _task_write(
             source=source,
         )
     if action == "status":
-        if err := missing("doc_id", "status"):
-            return err
+        if not doc_id or not status:
+            return missing(doc_id=doc_id, status=status)
         return task_service.set_task_status(loader, doc_id, status)
     if action == "promote":
-        if err := missing("note_path", "title"):
-            return err
+        if not note_path or not title:
+            return missing(note_path=note_path, title=title)
         return task_service.promote_note(
             loader, note_path, title=title, project=project, effort=effort, priority=priority
         )
     if action == "delete":
-        if err := missing("doc_id"):
-            return err
+        if not doc_id:
+            return missing(doc_id=doc_id)
         return task_service.delete_task(loader, doc_id)
     return {"ok": False, "error": f"unknown action {action!r}; one of add, status, promote, delete"}
 
@@ -417,7 +431,7 @@ def _task_write(
 
 
 def register_core(
-    mcp,
+    mcp: Any,
     vaults: Mapping[str, GovernanceContext],
     *,
     default: str | None = None,
@@ -429,7 +443,8 @@ def register_core(
     default_vault = default if default is not None else names[0]
     if default_vault not in vaults:
         raise ValueError(f"default vault {default_vault!r} is not one of {list(names)}")
-    VaultName = Literal[names]  # noqa: N806 - a type built from configuration
+    VaultName = Literal[names]  # type: ignore[valid-type]  # the vault names are only known at runtime
+    server = cast("_McpServer", mcp)
 
     def ctx_for(vault: str) -> GovernanceContext:
         try:
@@ -437,13 +452,13 @@ def register_core(
         except KeyError:
             raise ValueError(f"unknown vault {vault!r}; one of {list(names)}") from None
 
-    def tool(fn: Callable[..., Any]) -> Callable[..., Any]:
+    def tool(fn: _Tool) -> _Tool:
         fn.__annotations__["vault"] = VaultName
-        return mcp.tool()(fn)
+        return server.tool()(fn)
 
     # ----- resources -----------------------------------------------------------
 
-    @mcp.resource(
+    @server.resource(
         QUICK_INDEX_RESOURCE_TEMPLATE,
         name="quick-index",
         title="Vault Quick Index",
@@ -454,7 +469,7 @@ def register_core(
         """Return a vault's Quick Index markdown."""
         return _render_doc_resource(ctx_for(vault), QUICK_INDEX_DOC_ID)
 
-    @mcp.resource(
+    @server.resource(
         DOC_RESOURCE_TEMPLATE_URI,
         name="vault-doc",
         title="Vault doc by doc_id",
@@ -503,13 +518,20 @@ def register_core(
             response = _find_project(ctx, query)
         elif by == "text":
             response = vault_query_service.search_body(
-                ctx.loader, query, limit=limit, context_lines=context_lines, case_sensitive=case_sensitive
+                ctx.loader,
+                query,
+                limit=limit,
+                context_lines=context_lines,
+                case_sensitive=case_sensitive,
             )
             if "error" not in response:
                 response["hits"] = response.pop("hits_by_doc")
                 response["match_count"] = response.pop("doc_count")
         else:
-            return {"ok": False, "error": f"unknown mode {by!r}; one of relevance, system, project, text"}
+            return {
+                "ok": False,
+                "error": f"unknown mode {by!r}; one of relevance, system, project, text",
+            }
         return {"vault": vault, "mode": by, **response}
 
     @tool
@@ -536,7 +558,9 @@ def register_core(
         return {"vault": vault, **_read_doc(ctx_for(vault), doc_id, section, include_restricted)}
 
     @tool
-    def recent_changes(vault: str = default_vault, days: int = 7, limit: int = 50) -> dict[str, Any]:
+    def recent_changes(
+        vault: str = default_vault, days: int = 7, limit: int = 50
+    ) -> dict[str, Any]:
         """Recent commits touching a vault's indexed folders (metadata only, no diffs).
 
         Args:
@@ -547,7 +571,9 @@ def register_core(
         return vault_query_service.recent_changes(ctx_for(vault).loader, days, limit)
 
     @tool
-    def daily_progress(query: str, vault: str = default_vault, today: str | None = None) -> dict[str, Any]:
+    def daily_progress(
+        query: str, vault: str = default_vault, today: str | None = None
+    ) -> dict[str, Any]:
         """Read the daily note a progress question refers to ("what did I do Friday?").
 
         Resolves today, yesterday, weekday names, `last Friday`, `YYYY-MM-DD` and

@@ -7,8 +7,6 @@ one implementation of "replace a file durably," and the transactional path is
 just the locked, multi-file generalization of :func:`atomic_write_text`.
 """
 
-from __future__ import annotations
-
 import fcntl
 import hashlib
 import os
@@ -44,7 +42,7 @@ def atomic_write_text(path: Path, text: str) -> None:
             text.encode("utf-8"),
             prefix=f".{path.name}.svmc-",
         )
-        os.replace(staged, path)
+        staged.replace(path)
         staged = None
     finally:
         if staged is not None:
@@ -106,11 +104,9 @@ def transactional_replace(
             try:
                 for path, original in originals.items():
                     if path.read_bytes() != original:
-                        raise RuntimeError(
-                            f"file changed during transaction: {path}"
-                        )
+                        raise RuntimeError(f"file changed during transaction: {path}")
                 for path in sorted(replacements, key=str):
-                    os.replace(staged[path], path)
+                    staged[path].replace(path)
                     replaced.append(path)
             except (OSError, RuntimeError) as exc:
                 rollback_errors: list[str] = []
@@ -121,7 +117,7 @@ def transactional_replace(
                             originals[path],
                             prefix=f".{path.name}.rollback-",
                         )
-                        os.replace(rollback_path, path)
+                        rollback_path.replace(path)
                     except OSError as rollback_exc:
                         rollback_errors.append(f"{path}: {rollback_exc}")
                 detail = str(exc)

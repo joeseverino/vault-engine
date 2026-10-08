@@ -1,11 +1,9 @@
 """Tiny keyword-search ranker.
 
-No embeddings, no vector store — for ~50–200 well-tagged docs the bag-of-words
+No embeddings, no vector store: for ~50 to 200 well-tagged docs the bag-of-words
 score over title + system + tags + doc_id is plenty. Add semantic search later
 only if keyword retrieval starts to feel weak.
 """
-
-from __future__ import annotations
 
 import re
 from dataclasses import dataclass
@@ -21,8 +19,28 @@ _TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 # tokens — a doc keeps every word it has.
 _QUERY_STOPWORDS = frozenset(
     {
-        "a", "an", "the", "of", "to", "in", "on", "for", "and", "or", "with",
-        "my", "is", "it", "do", "i", "into", "as", "at", "by", "from", "this",
+        "a",
+        "an",
+        "the",
+        "of",
+        "to",
+        "in",
+        "on",
+        "for",
+        "and",
+        "or",
+        "with",
+        "my",
+        "is",
+        "it",
+        "do",
+        "i",
+        "into",
+        "as",
+        "at",
+        "by",
+        "from",
+        "this",
         "that",
     }
 )
@@ -44,18 +62,20 @@ def query_tokens(query: str) -> set[str]:
 
 
 def doc_tokens(doc: Doc) -> set[str]:
-    bits = " ".join([
-        doc.doc_id,
-        doc.title,
-        doc.system,
-        doc.doc_type,
-        doc.environment,
-        " ".join(doc.tags),
-    ])
+    bits = " ".join(
+        [
+            doc.doc_id,
+            doc.title,
+            doc.system,
+            doc.doc_type,
+            doc.environment,
+            " ".join(doc.tags),
+        ]
+    )
     return tokenize(bits)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Hit:
     doc: Doc
     score: int

@@ -1,22 +1,15 @@
 """Doc.extra — the lossless remainder: one parser, profile domain layers derive."""
 
-from __future__ import annotations
+from collections.abc import Callable
+from pathlib import Path
 
-from vault_engine.config import Config
 from vault_engine.vault import VaultLoader
 
 
-def _loader(tmp_path, monkeypatch):
-    (tmp_path / "Notes").mkdir()
-    cfg = tmp_path / "config.toml"
-    cfg.write_text(f'[vault]\npath = "{tmp_path}"\nindexed_dirs = ["Notes"]\n')
-    monkeypatch.setenv("SVMC_CONFIG", str(cfg))
-    monkeypatch.delenv("SVMC_VAULT_PATH", raising=False)
-    return VaultLoader(Config.from_env())
-
-
-def test_unconsumed_keys_land_in_extra(tmp_path, monkeypatch):
-    loader = _loader(tmp_path, monkeypatch)
+def test_unconsumed_keys_land_in_extra(
+    tmp_path: Path, vault_loader: Callable[..., VaultLoader]
+) -> None:
+    loader = vault_loader()
     (tmp_path / "Notes" / "a.md").write_text(
         "---\n"
         "doc_id: note-a\ntitle: A\ndoc_type: runbook\nsystem: x\n"
@@ -28,8 +21,10 @@ def test_unconsumed_keys_land_in_extra(tmp_path, monkeypatch):
     assert doc.extra == {"expires": "2027-05-31", "lead_days": "30"}
 
 
-def test_core_fields_never_duplicated_into_extra(tmp_path, monkeypatch):
-    loader = _loader(tmp_path, monkeypatch)
+def test_core_fields_never_duplicated_into_extra(
+    tmp_path: Path, vault_loader: Callable[..., VaultLoader]
+) -> None:
+    loader = vault_loader()
     (tmp_path / "Notes" / "b.md").write_text(
         "---\ndoc_id: note-b\ntitle: B\ndoc_type: runbook\nsystem: x\n"
         "environment: other\nstatus: active\nsensitivity: internal\ntags: [t]\n"
@@ -40,8 +35,8 @@ def test_core_fields_never_duplicated_into_extra(tmp_path, monkeypatch):
     assert doc.to_metadata()["extra"] == {}
 
 
-def test_extra_rides_metadata(tmp_path, monkeypatch):
-    loader = _loader(tmp_path, monkeypatch)
+def test_extra_rides_metadata(tmp_path: Path, vault_loader: Callable[..., VaultLoader]) -> None:
+    loader = vault_loader()
     (tmp_path / "Notes" / "c.md").write_text(
         "---\ndoc_id: note-c\ntitle: C\ndoc_type: runbook\nsystem: x\n"
         "environment: other\nstatus: active\nsensitivity: internal\ncustom: v\n"
@@ -51,23 +46,21 @@ def test_extra_rides_metadata(tmp_path, monkeypatch):
     assert doc.to_metadata()["extra"] == {"custom": "v"}
 
 
-def test_dot_indexes_vault_root_non_recursively(tmp_path, monkeypatch):
-    (tmp_path / "Notes").mkdir()
+def test_dot_indexes_vault_root_non_recursively(
+    tmp_path: Path, vault_loader: Callable[..., VaultLoader]
+) -> None:
     (tmp_path / "Hidden").mkdir()
-    cfg = tmp_path / "config.toml"
-    cfg.write_text(f'[vault]\npath = "{tmp_path}"\nindexed_dirs = [".", "Notes"]\n')
-    monkeypatch.setenv("SVMC_CONFIG", str(cfg))
-    monkeypatch.delenv("SVMC_VAULT_PATH", raising=False)
+    loader = vault_loader((".", "Notes"))
 
-    fm = ("---\ndoc_id: note-{n}\ntitle: N\ndoc_type: runbook\nsystem: x\n"
-          "environment: other\nstatus: active\nsensitivity: internal\n---\n\n# N\n")
+    fm = (
+        "---\ndoc_id: note-{n}\ntitle: N\ndoc_type: runbook\nsystem: x\n"
+        "environment: other\nstatus: active\nsensitivity: internal\n---\n\n# N\n"
+    )
     (tmp_path / "Root.md").write_text(fm.format(n="root"))
     (tmp_path / "Notes" / "a.md").write_text(fm.format(n="a"))
     (tmp_path / "Hidden" / "b.md").write_text(fm.format(n="hidden"))
 
-    from vault_engine.config import Config
-    from vault_engine.vault import VaultLoader
-    idx = VaultLoader(Config.from_env()).index()
-    assert "note-root" in idx.by_doc_id           # root file joins
-    assert "note-a" in idx.by_doc_id              # named dir still walked
-    assert "note-hidden" not in idx.by_doc_id     # unindexed subtree stays out
+    idx = loader.index()
+    assert "note-root" in idx.by_doc_id  # root file joins
+    assert "note-a" in idx.by_doc_id  # named dir still walked
+    assert "note-hidden" not in idx.by_doc_id  # unindexed subtree stays out

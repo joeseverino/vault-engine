@@ -42,4 +42,3 @@ def test_receipt_is_stable_sorted_and_body_free() -> None:
     assert receipt["changed_fields"] == ["status", "title"]
     assert len(receipt["idempotency_key"]) == 64
     assert "body" not in str(receipt).lower()
-

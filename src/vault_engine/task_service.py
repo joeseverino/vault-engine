@@ -13,13 +13,12 @@ CLI, the Obsidian cockpit, ``brief`` — derives from these three functions and
 re-authors nothing. Emit once, derive everywhere.
 """
 
-from __future__ import annotations
-
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 from . import schema
+from ._clock import local_today
 from .atomic_write import atomic_create_text, atomic_write_text
 from .contracts import MutationReceipt, canonical_fingerprint
 from .frontmatter import (
@@ -27,7 +26,7 @@ from .frontmatter import (
     serialize_frontmatter,
     split_frontmatter,
 )
-from .vault import VaultLoader
+from .vault import Doc, VaultLoader
 
 PROJECTS_DIR = "01 Projects"
 BACKLOG_DIR = "07 Backlog"
@@ -62,7 +61,7 @@ def _project_of(relative_path: str) -> str:
     return CROSS
 
 
-def _task_record(loader: VaultLoader, doc, stale_days: int) -> dict[str, Any]:
+def _task_record(loader: VaultLoader, doc: Doc, stale_days: int) -> dict[str, Any]:
     """One board row: index facts + the profile fields read on demand."""
     fm = read_frontmatter(doc.path) or {}
     age_days = _age_days(doc.path)
@@ -88,12 +87,13 @@ def _task_record(loader: VaultLoader, doc, stale_days: int) -> dict[str, Any]:
 def _age_days(path: Path) -> int:
     try:
         import time
+
         return int((time.time() - path.stat().st_mtime) // 86400)
     except OSError:
         return 0
 
 
-def _sort_key(task: dict[str, Any]):
+def _sort_key(task: dict[str, Any]) -> tuple[int, int, str, str]:
     return (
         _STATUS_ORDER.get(task["status"], 99),
         _PRIORITY_ORDER.get(task["priority"], 99),
@@ -152,7 +152,7 @@ def list_tasks(
 
     # The activity feed: done within the window, kept in place, newest first.
     # Honors the project filter so a project view shows its own shipped.
-    today = date.today()
+    today = local_today()
     shipped: list[dict[str, Any]] = []
     for task in all_tasks:
         if task["status"] != "done" or not task["closed"] or not in_project(task):
@@ -196,30 +196,23 @@ def list_projects(loader: VaultLoader) -> dict[str, Any]:
 
     projects: list[dict[str, Any]] = []
     try:
-        names = sorted(p.name for p in (loader.config.vault_path / PROJECTS_DIR).iterdir() if p.is_dir())
+        names = sorted(
+            p.name for p in (loader.config.vault_path / PROJECTS_DIR).iterdir() if p.is_dir()
+        )
     except OSError:
         names = []
-    for name in names:
-        projects.append({"slug": name, "open": open_counts.get(name, 0)})
+    projects.extend({"slug": name, "open": open_counts.get(name, 0)} for name in names)
     return {"ok": True, "count": len(projects), "projects": projects}
 
 
 def _slugify(title: str) -> str:
-    out = []
-    for ch in title.lower():
-        out.append(ch if ch.isalnum() else "-")
-    slug = "".join(out)
+    slug = "".join(ch if ch.isalnum() else "-" for ch in title.lower())
     while "--" in slug:
         slug = slug.replace("--", "-")
     return slug.strip("-")[:60].strip("-")
 
 
-_TASK_TEMPLATE_BODY = (
-    "**Problem.** \n\n"
-    "**Fix.** \n\n"
-    "**Principle.** \n\n"
-    "**Source.** \n"
-)
+_TASK_TEMPLATE_BODY = "**Problem.** \n\n**Fix.** \n\n**Principle.** \n\n**Source.** \n"
 
 
 def _create_task(
@@ -277,8 +270,7 @@ def _create_task(
     if doc_id in index.by_doc_id:
         return {
             "ok": False,
-            "error": f"doc_id {doc_id!r} already exists at "
-            f"{index.by_doc_id[doc_id].relative_path}",
+            "error": f"doc_id {doc_id!r} already exists at {index.by_doc_id[doc_id].relative_path}",
         }
     file_path = target_dir / f"{doc_id}.md"
     if file_path.exists():
@@ -292,7 +284,7 @@ def _create_task(
         "related_projects": list(related),
         "effort": effort,
         "priority": priority,
-        "created": date.today().isoformat(),
+        "created": local_today().isoformat(),
         "tags": tags or ["backlog"],
     }
     try:
@@ -403,21 +395,22 @@ def promote_note(
     return result
 
 
-def _resolve_task(loader: VaultLoader, doc_id: str):
-    """Find a task doc by full id or bare slug. Returns (doc, None) or
-    (None, error_dict) — the one resolver every task write shares."""
+def _resolve_task(loader: VaultLoader, doc_id: str) -> Doc | dict[str, Any]:
+    """Find a task doc by full id or bare slug. Returns the doc or an error
+    dict, the one resolver every task write shares."""
     index = loader.index()
     doc = index.by_doc_id.get(doc_id) or index.by_doc_id.get(f"task-{doc_id}")
     if doc is None:
-        return None, {"ok": False, "error": f"no task matches: {doc_id!r}"}
+        return {"ok": False, "error": f"no task matches: {doc_id!r}"}
     if doc.doc_type != "task":
-        return None, {"ok": False, "error": f"{doc.doc_id!r} is not a task (doc_type {doc.doc_type})"}
-    return doc, None
+        return {
+            "ok": False,
+            "error": f"{doc.doc_id!r} is not a task (doc_type {doc.doc_type})",
+        }
+    return doc
 
 
-def set_task_status(
-    loader: VaultLoader, doc_id: str, status: str
-) -> dict[str, Any]:
+def set_task_status(loader: VaultLoader, doc_id: str, status: str) -> dict[str, Any]:
     """Move a task to a new status; stamp ``closed:`` on done, clear it on reopen.
 
     Done tasks are kept (not deleted) so "what shipped" stays a query. Resolves a
@@ -428,9 +421,9 @@ def set_task_status(
             "ok": False,
             "error": f"status {status!r} not in {sorted(schema.TASK_STATUSES)}",
         }
-    doc, err = _resolve_task(loader, doc_id)
-    if err:
-        return err
+    doc = _resolve_task(loader, doc_id)
+    if isinstance(doc, dict):
+        return doc
 
     text = doc.path.read_text(encoding="utf-8")
     frontmatter, body, _ = split_frontmatter(text)
@@ -440,7 +433,7 @@ def set_task_status(
     previous = str(frontmatter.get("status") or "")
     frontmatter["status"] = status
     if status == "done":
-        frontmatter["closed"] = date.today().isoformat()
+        frontmatter["closed"] = local_today().isoformat()
     else:
         frontmatter.pop("closed", None)
 
@@ -495,9 +488,9 @@ def delete_task(loader: VaultLoader, doc_id: str) -> dict[str, Any]:
     refuses any non-task doc. The file is git-tracked, so a committed delete is
     still recoverable from history.
     """
-    doc, err = _resolve_task(loader, doc_id)
-    if err:
-        return err
+    doc = _resolve_task(loader, doc_id)
+    if isinstance(doc, dict):
+        return doc
     rel = doc.relative_path
     resolved_id = doc.doc_id
     try:

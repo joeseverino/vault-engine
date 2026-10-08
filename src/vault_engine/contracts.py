@@ -5,8 +5,6 @@ services identify inputs, present reviewable plans, reject stale applications,
 and report completed mutations across any adapter.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
@@ -30,7 +28,7 @@ class StalePlanError(RuntimeError):
     """Raised when authoritative inputs changed after a plan was reviewed."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class GovernancePlan:
     """A deterministic, reviewable plan over one authoritative source state."""
 
@@ -73,7 +71,7 @@ class GovernancePlan:
             )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MutationReceipt:
     """Standard receipt for a completed governed mutation.
 
@@ -93,20 +91,20 @@ class MutationReceipt:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "changed_fields", tuple(sorted(self.changed_fields)))
-        object.__setattr__(
-            self, "affected_projections", tuple(sorted(self.affected_projections))
-        )
+        object.__setattr__(self, "affected_projections", tuple(sorted(self.affected_projections)))
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
     @property
     def idempotency_key(self) -> str:
-        return canonical_fingerprint({
-            "operation": self.operation,
-            "entity_type": self.entity_type,
-            "entity_id": self.entity_id,
-            "after_fingerprint": self.after_fingerprint,
-            "changed_fields": list(self.changed_fields),
-        })
+        return canonical_fingerprint(
+            {
+                "operation": self.operation,
+                "entity_type": self.entity_type,
+                "entity_id": self.entity_id,
+                "after_fingerprint": self.after_fingerprint,
+                "changed_fields": list(self.changed_fields),
+            }
+        )
 
     def as_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -123,4 +121,3 @@ class MutationReceipt:
         if self.after_fingerprint is not None:
             data["after_fingerprint"] = self.after_fingerprint
         return data
-
