@@ -18,8 +18,6 @@ the emitter reads it back here. All this module adds is this repo's inventory
 coordinates (`group` / `order`).
 """
 
-from __future__ import annotations
-
 import argparse
 from typing import Any
 
@@ -39,7 +37,8 @@ def describe_parser(parser: argparse.ArgumentParser) -> dict[str, Any]:
     ``read`` (the entry point only dispatches); per-command effects come from the
     ``set_effect`` annotations in :func:`cli.build_parser`.
     """
-    return _emit(parser, group=GROUP, order=ORDER)
+    envelope: dict[str, Any] = _emit(parser, group=GROUP, order=ORDER)
+    return envelope
 
 
 __all__ = ["describe_parser"]

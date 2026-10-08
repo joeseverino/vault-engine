@@ -16,8 +16,6 @@ shape in either renderer — call :func:`find_sections` / :func:`read_section`.
   shell-pipe one, exactly as `find` (text) already withholds restricted.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from .search import best_section, rank
@@ -61,8 +59,7 @@ def find_sections(loader: VaultLoader, query: str, *, limit: int = 5) -> dict[st
         "query": query,
         "indexed_doc_count": len(idx.docs),
         "hits": [
-            {"score": h.score, **doc_to_hit(h.doc), **section_menu(h.doc, query)}
-            for h in hits
+            {"score": h.score, **doc_to_hit(h.doc), **section_menu(h.doc, query)} for h in hits
         ],
     }
 
@@ -119,8 +116,7 @@ def read_section(
             base["body_released"] = False
             base["section_error"] = f"no section {section!r} in {doc.doc_id}"
             base["available_sections"] = [
-                {"section": s.slug, "heading_path": s.heading_path}
-                for s in doc.sections
+                {"section": s.slug, "heading_path": s.heading_path} for s in doc.sections
             ]
             return base
         base["body"] = sec.body
@@ -138,4 +134,4 @@ def read_section(
     return base
 
 
-__all__ = ["section_menu", "find_sections", "read_section"]
+__all__ = ["find_sections", "read_section", "section_menu"]

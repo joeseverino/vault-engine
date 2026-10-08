@@ -16,8 +16,6 @@ FastMCP-free, like every other service module — `vault.py` calls
 :func:`parse_sections` while building the index; `search.py` scores the spans.
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 
@@ -30,14 +28,14 @@ _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _ATX_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Section:
-    heading: str        # H2 text, or "" for the pre-H2 preamble
-    slug: str           # addressable, unique within the doc
-    heading_path: str   # e.g. "Routine operations > Backing commands"
-    level: int          # heading level that opened it (2; 3 when sub-split; 0 preamble)
-    body: str           # section text, including its heading line
-    start_line: int     # 1-indexed line in the source file
+    heading: str  # H2 text, or "" for the pre-H2 preamble
+    slug: str  # addressable, unique within the doc
+    heading_path: str  # e.g. "Routine operations > Backing commands"
+    level: int  # heading level that opened it (2; 3 when sub-split; 0 preamble)
+    body: str  # section text, including its heading line
+    start_line: int  # 1-indexed line in the source file
 
 
 @dataclass
@@ -136,8 +134,13 @@ def _subsplit(block: _Block, token_cap: int) -> list[_Block]:
         end = h3[n + 1] if n + 1 < len(h3) else len(block.lines)
         text = headings[start][1]
         parts.append(
-            _Block(text, 3, f"{block.heading} > {text}", block.lines[start:end],
-                   block.start_line + start)
+            _Block(
+                text,
+                3,
+                f"{block.heading} > {text}",
+                block.lines[start:end],
+                block.start_line + start,
+            )
         )
 
     out: list[_Block] = []
@@ -164,28 +167,26 @@ def parse_sections(
     for n, start in enumerate(h2):
         end = h2[n + 1] if n + 1 < len(h2) else len(lines)
         heading = headings[start][1]
-        blocks.append(
-            _Block(heading, 2, heading, lines[start:end], body_start_line + start)
-        )
+        blocks.append(_Block(heading, 2, heading, lines[start:end], body_start_line + start))
 
     slugger = _Slugger()
     sections: list[Section] = []
     for block in blocks:
-        for sub in _subsplit(block, token_cap):
-            sections.append(
-                Section(
-                    heading=sub.heading,
-                    slug=slugger.unique(_slugify(sub.heading_path)),
-                    heading_path=sub.heading_path,
-                    level=sub.level,
-                    body="\n".join(sub.lines),
-                    start_line=sub.start_line,
-                )
+        sections.extend(
+            Section(
+                heading=sub.heading,
+                slug=slugger.unique(_slugify(sub.heading_path)),
+                heading_path=sub.heading_path,
+                level=sub.level,
+                body="\n".join(sub.lines),
+                start_line=sub.start_line,
             )
+            for sub in _subsplit(block, token_cap)
+        )
     return sections
 
 
-def resolve_section(sections: list[Section], ref: str):
+def resolve_section(sections: list[Section], ref: str) -> Section | None:
     """Find a section by slug, then by heading_path / heading (case-insensitive)."""
     needle = (ref or "").strip().lower()
     if not needle:

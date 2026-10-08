@@ -6,8 +6,6 @@ personal vault paths and integration details out of the repository, while
 environment variables remain convenient for tests and one-off runs.
 """
 
-from __future__ import annotations
-
 import os
 import tomllib
 from collections.abc import Mapping
@@ -19,7 +17,7 @@ DEFAULT_CONFIG_PATH = "~/.config/severino-vault-mcp/config.toml"
 
 
 def _expand_path(raw: str | Path) -> Path:
-    return Path(os.path.expanduser(str(raw)))
+    return Path(raw).expanduser()
 
 
 def _env_path(env: Mapping[str, str], name: str, default: str | Path) -> Path:
@@ -51,7 +49,7 @@ def _read_config(path: Path) -> dict[str, Any]:
             data = tomllib.load(handle)
     except FileNotFoundError:
         return {}
-    except (OSError, tomllib.TOMLDecodeError):
+    except OSError, tomllib.TOMLDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -66,7 +64,7 @@ def _value(section: dict[str, Any], key: str, default: Any) -> Any:
     return default if value is None else value
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Config:
     vault_path: Path
     indexed_dirs: tuple[str, ...]
@@ -154,10 +152,12 @@ class Config:
                 "SVMC_METADATA_URL",
                 str(_value(metadata, "url", "")),
             ),
-            cache_seconds=int(values.get(
-                "SVMC_CACHE_SECONDS",
-                str(_value(cache, "seconds", 30)),
-            )),
+            cache_seconds=int(
+                values.get(
+                    "SVMC_CACHE_SECONDS",
+                    str(_value(cache, "seconds", 30)),
+                )
+            ),
             allow_secret_adjacent_unlock=_env_bool(
                 values,
                 "SVMC_ALLOW_RESTRICTED_UNLOCK",

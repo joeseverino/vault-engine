@@ -6,13 +6,11 @@ through :func:`frontmatter.serialize_frontmatter`, and reports failures as
 ``site manage`` all parse one envelope.
 """
 
-from __future__ import annotations
-
 import re
-from datetime import date
 from typing import Any
 from urllib.parse import urlparse
 
+from ._clock import local_today
 from .atomic_write import atomic_write_text
 from .contracts import MutationReceipt, canonical_fingerprint
 from .frontmatter import serialize_frontmatter, split_frontmatter
@@ -53,9 +51,7 @@ def update_document_link(
     frontmatter, body, body_start = split_frontmatter(text)
     if frontmatter is None:
         return {"ok": False, "error": "document has no frontmatter"}
-    pattern = re.compile(
-        rf"\[{re.escape(label)}\]\({re.escape(expected_href)}(?:\s+\"[^\"]*\")?\)"
-    )
+    pattern = re.compile(rf"\[{re.escape(label)}\]\({re.escape(expected_href)}(?:\s+\"[^\"]*\")?\)")
     matches = list(pattern.finditer(body))
     if len(matches) != 1:
         return {
@@ -120,27 +116,20 @@ def add_frontmatter(
             )
     else:
         if environment not in profile.environments:
-            errors.append(
-                f"environment {environment!r} not in {sorted(profile.environments)}"
-            )
+            errors.append(f"environment {environment!r} not in {sorted(profile.environments)}")
         if status not in profile.statuses:
             errors.append(f"status {status!r} not in {sorted(profile.statuses)}")
         if sensitivity not in profile.sensitivities:
-            errors.append(
-                f"sensitivity {sensitivity!r} not in {sorted(profile.sensitivities)}"
-            )
+            errors.append(f"sensitivity {sensitivity!r} not in {sorted(profile.sensitivities)}")
     if not doc_id.startswith(profile.doc_id_prefixes):
-        errors.append(
-            f"doc_id {doc_id!r} must start with one of "
-            f"{list(profile.doc_id_prefixes)}"
-        )
+        errors.append(f"doc_id {doc_id!r} must start with one of {list(profile.doc_id_prefixes)}")
     if errors:
         return {"ok": False, "error": "; ".join(errors)}
 
     full_path, path_error = validate_indexed_path(loader.config, relative_path)
     if path_error:
         return path_error
-    assert full_path is not None
+    assert full_path is not None  # noqa: S101 - narrows the (path, error) pair
     body = full_path.read_text(encoding="utf-8")
     if body.lstrip().startswith("---"):
         return {
@@ -156,16 +145,14 @@ def add_frontmatter(
         return {
             "ok": False,
             "error": (
-                f"doc_id {doc_id!r} is already duplicated at "
-                f"{index.duplicate_doc_ids[doc_id]}"
+                f"doc_id {doc_id!r} is already duplicated at {index.duplicate_doc_ids[doc_id]}"
             ),
         }
     if doc_id in index.by_doc_id:
         return {
             "ok": False,
             "error": (
-                f"doc_id {doc_id!r} already exists at "
-                f"{index.by_doc_id[doc_id].relative_path}"
+                f"doc_id {doc_id!r} already exists at {index.by_doc_id[doc_id].relative_path}"
             ),
         }
 
@@ -173,7 +160,7 @@ def add_frontmatter(
         # Mirror task_service._create_task's shape — one task contract, whether
         # the file is born via add_task or retrofitted here. Doc-only fields
         # (system/environment/sensitivity/last_reviewed) are not written.
-        payload: dict = {
+        payload: dict[str, Any] = {
             "doc_id": doc_id,
             "title": title,
             "doc_type": "task",
@@ -181,7 +168,7 @@ def add_frontmatter(
             "related_projects": [str(project) for project in (related_projects or [])],
             "effort": "S",
             "priority": "med",
-            "created": last_reviewed or date.today().isoformat(),
+            "created": last_reviewed or local_today().isoformat(),
             "tags": [str(tag) for tag in (tags or ["backlog"])],
         }
         new_body = serialize_frontmatter(payload) + body
@@ -200,10 +187,8 @@ def add_frontmatter(
         "environment": environment,
         "status": status,
         "sensitivity": sensitivity,
-        "last_reviewed": last_reviewed or date.today().isoformat(),
-        "related_projects": [
-            str(project) for project in (related_projects or [])
-        ],
+        "last_reviewed": last_reviewed or local_today().isoformat(),
+        "related_projects": [str(project) for project in (related_projects or [])],
         "related_assets": [str(asset) for asset in (related_assets or [])],
         "tags": [str(tag) for tag in (tags or [])],
     }
@@ -218,9 +203,7 @@ def add_frontmatter(
         "doc_id": doc_id,
         "relative_path": str(full_path.relative_to(loader.config.vault_path)),
         "wrote_bytes": len(new_body.encode("utf-8")),
-        "next_step": (
-            "run any downstream vault metadata sync if your workflow uses one"
-        ),
+        "next_step": ("run any downstream vault metadata sync if your workflow uses one"),
     }
 
 
@@ -271,22 +254,18 @@ def update_frontmatter(
     if doc_type is not None and doc_type not in profile.doc_types:
         errors.append(f"doc_type {doc_type!r} not in {sorted(profile.doc_types)}")
     if environment is not None and environment not in profile.environments:
-        errors.append(
-            f"environment {environment!r} not in {sorted(profile.environments)}"
-        )
+        errors.append(f"environment {environment!r} not in {sorted(profile.environments)}")
     if status is not None and status not in profile.statuses:
         errors.append(f"status {status!r} not in {sorted(profile.statuses)}")
     if sensitivity is not None and sensitivity not in profile.sensitivities:
-        errors.append(
-            f"sensitivity {sensitivity!r} not in {sorted(profile.sensitivities)}"
-        )
+        errors.append(f"sensitivity {sensitivity!r} not in {sorted(profile.sensitivities)}")
     if errors:
         return {"ok": False, "error": "; ".join(errors)}
 
     full_path, path_error = validate_indexed_path(loader.config, relative_path)
     if path_error:
         return path_error
-    assert full_path is not None
+    assert full_path is not None  # noqa: S101 - narrows the (path, error) pair
     vault_root = loader.config.vault_path.resolve()
     text = full_path.read_text(encoding="utf-8")
     frontmatter, body, _body_start = split_frontmatter(text)
@@ -309,21 +288,18 @@ def update_frontmatter(
             frontmatter[key] = value
             changed[key] = value
 
-    reviewed = (
-        date.today().isoformat()
-        if touch_last_reviewed
-        else last_reviewed
-    )
+    reviewed = local_today().isoformat() if touch_last_reviewed else last_reviewed
     if reviewed is not None and frontmatter.get("last_reviewed") != reviewed:
         frontmatter["last_reviewed"] = reviewed
         changed["last_reviewed"] = reviewed
 
-    def update_list(field: str, set_value, add_value, remove_value) -> None:
-        if (
-            set_value is None
-            and add_value is None
-            and remove_value is None
-        ):
+    def update_list(
+        field: str,
+        set_value: list[str] | None,
+        add_value: list[str] | None,
+        remove_value: list[str] | None,
+    ) -> None:
+        if set_value is None and add_value is None and remove_value is None:
             return
         current = frontmatter.get(field) or []
         if not isinstance(current, list):
@@ -370,9 +346,7 @@ def update_frontmatter(
         "doc_id": frontmatter.get("doc_id"),
         "relative_path": str(full_path.relative_to(vault_root)),
         "changed_fields": sorted(changed),
-        "next_step": (
-            "run any downstream vault metadata sync if your workflow uses one"
-        ),
+        "next_step": ("run any downstream vault metadata sync if your workflow uses one"),
     }
 
 
@@ -409,19 +383,30 @@ def set_frontmatter(
     full_path, path_error = validate_indexed_path(loader.config, relative_path)
     if path_error:
         return path_error
-    assert full_path is not None
+    assert full_path is not None  # noqa: S101 - narrows the (path, error) pair
     existing, _body, _start = split_frontmatter(full_path.read_text(encoding="utf-8"))
 
     if existing is None:
-        absent = [
-            name
-            for name, value in (("doc_id", doc_id), ("title", title), ("doc_type", doc_type), ("system", system))
-            if not value
-        ]
-        if absent:
-            return {"ok": False, "error": f"no frontmatter yet; creating one needs {', '.join(absent)}"}
+        if not (doc_id and title and doc_type and system):
+            absent = [
+                name
+                for name, value in (
+                    ("doc_id", doc_id),
+                    ("title", title),
+                    ("doc_type", doc_type),
+                    ("system", system),
+                )
+                if not value
+            ]
+            return {
+                "ok": False,
+                "error": f"no frontmatter yet; creating one needs {', '.join(absent)}",
+            }
         if remove_tags or remove_related_projects or remove_related_assets:
-            return {"ok": False, "error": "no frontmatter yet; remove_* lists only apply to an update"}
+            return {
+                "ok": False,
+                "error": "no frontmatter yet; remove_* lists only apply to an update",
+            }
 
         def merged(base: list[str] | None, extra: list[str] | None) -> list[str] | None:
             if base is None and extra is None:
@@ -483,17 +468,15 @@ def touch_reviewed(loader: VaultLoader, relative_path: str) -> dict[str, Any]:
     full_path, path_error = validate_indexed_path(loader.config, relative_path)
     if path_error:
         return path_error
-    assert full_path is not None
+    assert full_path is not None  # noqa: S101 - narrows the (path, error) pair
     vault_root = loader.config.vault_path.resolve()
-    frontmatter, body, _body_start = split_frontmatter(
-        full_path.read_text(encoding="utf-8")
-    )
+    frontmatter, body, _body_start = split_frontmatter(full_path.read_text(encoding="utf-8"))
     if frontmatter is None:
         return {
             "ok": False,
             "error": "file has no frontmatter; add a block first.",
         }
-    reviewed = date.today().isoformat()
+    reviewed = local_today().isoformat()
     if frontmatter.get("last_reviewed") == reviewed:
         return {
             "ok": True,
@@ -512,9 +495,7 @@ def touch_reviewed(loader: VaultLoader, relative_path: str) -> dict[str, Any]:
         "doc_id": frontmatter.get("doc_id"),
         "relative_path": str(full_path.relative_to(vault_root)),
         "changed_fields": ["last_reviewed"],
-        "next_step": (
-            "run any downstream vault metadata sync if your workflow uses one"
-        ),
+        "next_step": ("run any downstream vault metadata sync if your workflow uses one"),
     }
 
 
@@ -522,8 +503,8 @@ __all__ = [
     "add_frontmatter",
     "set_frontmatter",
     "touch_reviewed",
-    "update_frontmatter",
     "update_document_link",
+    "update_frontmatter",
 ]
 
 
@@ -550,9 +531,7 @@ def backfill_aliases(loader: VaultLoader) -> dict[str, Any]:
         if not doc.relative_path.endswith("/index.md"):
             continue
         full_path = vault_root / doc.relative_path
-        frontmatter, body, _body_start = split_frontmatter(
-            full_path.read_text(encoding="utf-8")
-        )
+        frontmatter, body, _body_start = split_frontmatter(full_path.read_text(encoding="utf-8"))
         title = (frontmatter or {}).get("title")
         if not frontmatter or not title:
             skipped += 1
@@ -567,9 +546,7 @@ def backfill_aliases(loader: VaultLoader) -> dict[str, Any]:
         # Title first, preserving any hand-added aliases after it.
         frontmatter["aliases"] = [title, *(a for a in existing if a != title)]
         try:
-            atomic_write_text(
-                full_path, serialize_frontmatter(frontmatter) + body
-            )
+            atomic_write_text(full_path, serialize_frontmatter(frontmatter) + body)
         except OSError as exc:
             return {
                 "ok": False,

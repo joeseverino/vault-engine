@@ -10,11 +10,10 @@ Writeup state keeps its own owner (`writeup_service` / `list-writeups`); this
 stays doc-focused so each fact has exactly one owner.
 """
 
-from __future__ import annotations
-
 from datetime import date
 from typing import Any
 
+from ._clock import local_today
 from .task_service import list_tasks
 from .vault import VaultLoader
 from .vault_query_service import recent_changes
@@ -26,8 +25,8 @@ def _age_days(iso: str | None) -> int | None:
         return None
     try:
         year, month, day = (int(part) for part in iso[:10].split("-"))
-        return (date.today() - date(year, month, day)).days
-    except (ValueError, IndexError):
+        return (local_today() - date(year, month, day)).days
+    except ValueError, IndexError:
         return None
 
 

@@ -10,8 +10,6 @@ The context is domain-agnostic: a domain server builds its own domain runtimes
 inside its own application layer. The engine never knows about them.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from pathlib import Path
 

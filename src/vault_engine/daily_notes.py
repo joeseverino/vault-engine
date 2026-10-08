@@ -6,14 +6,13 @@ contract. This module gives the MCP a narrow way to answer "what happened on
 Friday?" without making daily notes compete with durable docs.
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from ._clock import local_today
 from .frontmatter import split_frontmatter
 from .vault import VaultLoader
 
@@ -40,7 +39,7 @@ _WEEKDAYS = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DailyNote:
     date: date
     doc_id: str
@@ -51,7 +50,7 @@ class DailyNote:
 
 
 def _today() -> date:
-    return datetime.now().date()
+    return local_today()
 
 
 def _parse_today(value: str | None) -> date:
@@ -141,26 +140,30 @@ def daily_progress(loader: VaultLoader, query: str, *, today: str | None = None)
         "daily_notes_dir": loader.config.daily_notes_dir,
     }
     if note is None:
-        response.update({
-            "found": False,
-            "expected_path": f"{loader.config.daily_notes_dir}/{note_date.isoformat()}.md",
-            "progress_items": [],
-        })
+        response.update(
+            {
+                "found": False,
+                "expected_path": f"{loader.config.daily_notes_dir}/{note_date.isoformat()}.md",
+                "progress_items": [],
+            }
+        )
         return response
 
-    response.update({
-        "found": True,
-        "doc_id": note.doc_id,
-        "obsidian_path": note.relative_path,
-        "created": note.created,
-        "body": note.body,
-        "body_released": True,
-        "progress_items": _progress_lines(note.body),
-        "answer_guidance": (
-            "Summarize progress from progress_items/body. If the body is empty, "
-            "say no progress was recorded in the daily note for this date."
-        ),
-    })
+    response.update(
+        {
+            "found": True,
+            "doc_id": note.doc_id,
+            "obsidian_path": note.relative_path,
+            "created": note.created,
+            "body": note.body,
+            "body_released": True,
+            "progress_items": _progress_lines(note.body),
+            "answer_guidance": (
+                "Summarize progress from progress_items/body. If the body is empty, "
+                "say no progress was recorded in the daily note for this date."
+            ),
+        }
+    )
     return response
 
 
