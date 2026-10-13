@@ -6,11 +6,8 @@ to release it. The unlock phrase is collected through a macOS hidden-input
 dialog, never through chat.
 """
 
-from __future__ import annotations
-
 import hashlib
 import hmac
-import os
 import shutil
 import subprocess
 import sys
@@ -19,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SecretUnlockResult:
     allowed: bool
     result: str
@@ -69,8 +66,8 @@ def load_unlock_hash(
         return None
 
     try:
-        proc = subprocess.run(
-            [
+        proc = subprocess.run(  # noqa: S603 - argv list, no shell
+            [  # noqa: S607 - resolved from PATH on purpose
                 "security",
                 "find-generic-password",
                 "-s",
@@ -84,7 +81,7 @@ def load_unlock_hash(
             timeout=5,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return None
 
     if proc.returncode != 0:
@@ -103,14 +100,14 @@ def prompt_unlock_phrase(doc_id: str, title: str) -> str | None:
         'buttons {"Cancel", "Unlock"} default button "Unlock"'
     )
     try:
-        proc = subprocess.run(
-            ["osascript", "-e", script, "-e", "text returned of result"],
+        proc = subprocess.run(  # noqa: S603 - argv list, no shell
+            ["osascript", "-e", script, "-e", "text returned of result"],  # noqa: S607 - resolved from PATH on purpose
             capture_output=True,
             text=True,
             timeout=60,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return None
 
     if proc.returncode != 0:
@@ -128,7 +125,7 @@ def _append_audit_line(audit_log_path: Path, line: str) -> None:
         audit_log_path.parent.mkdir(parents=True, exist_ok=True)
         with audit_log_path.open("a", encoding="utf-8") as handle:
             handle.write(line if line.endswith("\n") else line + "\n")
-        os.chmod(audit_log_path, 0o600)
+        audit_log_path.chmod(0o600)
     except OSError:
         # Best-effort audit only: a logging failure must never turn a
         # successful local action into a failure (see docstring). Swallowed
@@ -155,8 +152,7 @@ def audit_secret_unlock(audit_log_path: Path, *, doc_id: str, result: str) -> No
     timestamp = datetime.now(UTC).isoformat()
     _append_audit_line(
         audit_log_path,
-        f"{timestamp} action=restricted_unlock doc_id={doc_id} "
-        f"result={result} client=stdio",
+        f"{timestamp} action=restricted_unlock doc_id={doc_id} result={result} client=stdio",
     )
 
 

@@ -6,7 +6,8 @@ so a Labs server and an Education server differ only by the profile their contex
 carries — the whole point of the engine extraction.
 """
 
-from __future__ import annotations
+from pathlib import Path
+from typing import Any
 
 from vault_engine import schema
 from vault_engine.config import Config
@@ -19,7 +20,11 @@ def test_education_profile_is_a_distinct_coherent_contract() -> None:
     edu = EDUCATION_PROFILE.as_dict()
     assert EDUCATION_PROFILE.name == "education"
     assert edu["doc_types"] == [
-        "assignment", "course", "course_note", "resource", "task",
+        "assignment",
+        "course",
+        "course_note",
+        "resource",
+        "task",
     ]
     assert edu["doc_id_prefixes"] == ["course-", "cnote-", "asg-", "res-", "task-"]
     # A different contract from Labs — different doc-types and prefixes.
@@ -35,23 +40,22 @@ def test_hq_schema_emit_still_the_labs_profile() -> None:
     assert schema.as_dict() == LABS_PROFILE.as_dict()
 
 
-def test_write_path_validates_against_the_handed_profile(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("SVMC_VAULT_PATH", str(tmp_path))
-    runbooks = tmp_path / "03 Runbooks"
+def test_write_path_validates_against_the_handed_profile(vault_env: Path) -> None:
+    runbooks = vault_env / "03 Runbooks"
     runbooks.mkdir()
     (runbooks / "cs6250.md").write_text("# CS6250\n", encoding="utf-8")
     loader = VaultLoader(Config.from_env())
 
-    common = dict(
-        relative_path="03 Runbooks/cs6250.md",
-        doc_id="course-cs6250",
-        title="CS6250",
-        doc_type="course",
-        system="gt",
-        environment="gatech",
-        status="active",
-        sensitivity="internal",
-    )
+    common: dict[str, Any] = {
+        "relative_path": "03 Runbooks/cs6250.md",
+        "doc_id": "course-cs6250",
+        "title": "CS6250",
+        "doc_type": "course",
+        "system": "gt",
+        "environment": "gatech",
+        "status": "active",
+        "sensitivity": "internal",
+    }
 
     # Default (Labs) profile rejects an education doc_type / prefix / environment.
     rejected = add_frontmatter(loader, **common)
@@ -63,9 +67,8 @@ def test_write_path_validates_against_the_handed_profile(tmp_path, monkeypatch) 
     assert accepted["ok"] is True
 
 
-def test_add_frontmatter_task_retrofit_rides_the_task_contract(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("SVMC_VAULT_PATH", str(tmp_path))
-    backlog = tmp_path / "07 Backlog"
+def test_add_frontmatter_task_retrofit_rides_the_task_contract(vault_env: Path) -> None:
+    backlog = vault_env / "07 Backlog"
     backlog.mkdir()
     (backlog / "loose-todo.md").write_text("# Loose todo\n", encoding="utf-8")
     loader = VaultLoader(Config.from_env())

@@ -17,8 +17,6 @@ imports keep working as the engine is extracted. Edit the Labs values here and
 nowhere else.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import re
@@ -29,7 +27,7 @@ from types import MappingProxyType
 from typing import Any
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FieldSchema:
     """One domain-supplied frontmatter field rule.
 
@@ -50,11 +48,7 @@ class FieldSchema:
             raise ValueError(f"unknown field kind: {self.kind!r}")
         if self.pattern is not None:
             re.compile(self.pattern)
-        if (
-            self.minimum is not None
-            and self.maximum is not None
-            and self.minimum > self.maximum
-        ):
+        if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
             raise ValueError("field minimum cannot exceed maximum")
 
     def validate(self, name: str, value: Any) -> list[str]:
@@ -107,7 +101,7 @@ class FieldSchema:
         return data
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DocumentSchema:
     """Composable field contract for one ``doc_type``."""
 
@@ -126,7 +120,7 @@ class DocumentSchema:
         return {name: self.fields[name].as_dict() for name in sorted(self.fields)}
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SchemaProfile:
     """One vault's frontmatter contract: its enum sets, prefixes, and task lifecycle.
 
@@ -155,9 +149,7 @@ class SchemaProfile:
     def __post_init__(self) -> None:
         unknown = set(self.document_schemas) - set(self.doc_types)
         if unknown:
-            raise ValueError(
-                f"document schemas reference unknown doc_types: {sorted(unknown)}"
-            )
+            raise ValueError(f"document schemas reference unknown doc_types: {sorted(unknown)}")
         object.__setattr__(
             self,
             "document_schemas",
@@ -216,9 +208,9 @@ class SchemaProfile:
 
     def fingerprint(self) -> str:
         """Return a stable SHA-256 identity for the complete profile contract."""
-        encoded = json.dumps(
-            self.contract_dict(), sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
+        encoded = json.dumps(self.contract_dict(), sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
         return hashlib.sha256(encoded).hexdigest()
 
     def check_doc_enums(self, text: str) -> list[str]:
@@ -230,9 +222,7 @@ class SchemaProfile:
         silently drift from the profile. Returns human-readable mismatches; empty
         means the doc is current.
         """
-        pattern = re.compile(
-            r"^\s*(doc_type|environment|status|sensitivity)\s*:\s*(.+?)\s*$"
-        )
+        pattern = re.compile(r"^\s*(doc_type|environment|status|sensitivity)\s*:\s*(.+?)\s*$")
         found: dict[str, set[str]] = {}
         for line in text.splitlines():
             match = pattern.match(line)
@@ -269,27 +259,52 @@ class SchemaProfile:
 # The canonical Severino Labs ops profile. Edit these values, nowhere else.
 LABS_PROFILE = SchemaProfile(
     name="labs",
-    doc_types=frozenset({
-        "runbook", "architecture_note", "deployment_guide",
-        "troubleshooting_guide", "recovery_procedure",
-        "public_article_draft", "decision_record",
-        "task",
-    }),
-    environments=frozenset({
-        "homelab", "vps", "wordpress", "cloudflare", "tailscale",
-        "adguard", "unifi", "local_mac", "other",
-    }),
+    doc_types=frozenset(
+        {
+            "runbook",
+            "architecture_note",
+            "deployment_guide",
+            "troubleshooting_guide",
+            "recovery_procedure",
+            "public_article_draft",
+            "decision_record",
+            "task",
+        }
+    ),
+    environments=frozenset(
+        {
+            "homelab",
+            "vps",
+            "wordpress",
+            "cloudflare",
+            "tailscale",
+            "adguard",
+            "unifi",
+            "local_mac",
+            "other",
+        }
+    ),
     statuses=frozenset({"draft", "active", "deprecated", "archived"}),
     sensitivities=frozenset({"public", "internal", "sensitive", "restricted"}),
     doc_id_prefixes=("rb-", "infra-", "report-", "project-", "note-", "task-"),
     required_fields=(
-        "doc_id", "title", "doc_type", "system", "environment", "status",
+        "doc_id",
+        "title",
+        "doc_type",
+        "system",
+        "environment",
+        "status",
         "sensitivity",
     ),
     task_statuses=frozenset({"open", "active", "parked", "done", "wontfix"}),
     task_required_fields=("doc_id", "title", "doc_type", "status"),
     task_fields=(
-        "status", "related_projects", "effort", "priority", "created", "closed",
+        "status",
+        "related_projects",
+        "effort",
+        "priority",
+        "created",
+        "closed",
     ),
 )
 
@@ -300,20 +315,38 @@ LABS_PROFILE = SchemaProfile(
 # reused verbatim — a task is a task in any vault.
 EDUCATION_PROFILE = SchemaProfile(
     name="education",
-    doc_types=frozenset({
-        "course", "course_note", "assignment", "resource", "task",
-    }),
+    doc_types=frozenset(
+        {
+            "course",
+            "course_note",
+            "assignment",
+            "resource",
+            "task",
+        }
+    ),
     environments=frozenset({"gatech", "cert", "other"}),
-    statuses=frozenset({
-        "upcoming", "active", "completed", "dropped", "draft", "archived",
-    }),
+    statuses=frozenset(
+        {
+            "upcoming",
+            "active",
+            "completed",
+            "dropped",
+            "draft",
+            "archived",
+        }
+    ),
     sensitivities=frozenset({"public", "internal"}),
     doc_id_prefixes=("course-", "cnote-", "asg-", "res-", "task-"),
     required_fields=("doc_id", "title", "doc_type", "status"),
     task_statuses=frozenset({"open", "active", "parked", "done", "wontfix"}),
     task_required_fields=("doc_id", "title", "doc_type", "status"),
     task_fields=(
-        "status", "related_projects", "effort", "priority", "created", "closed",
+        "status",
+        "related_projects",
+        "effort",
+        "priority",
+        "created",
+        "closed",
     ),
 )
 

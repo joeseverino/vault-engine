@@ -1,6 +1,7 @@
 """Profiles compose domain contracts without putting domain values in the engine."""
 
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -8,23 +9,36 @@ from vault_engine.config import Config
 from vault_engine.doctor import validate_vault
 from vault_engine.schema import LABS_PROFILE, DocumentSchema, FieldSchema
 
-DOMAIN_SCHEMA = DocumentSchema(fields={
-    "category": FieldSchema(required=True, choices=frozenset({"a", "b"})),
-    "renews": FieldSchema(required=True, kind="date"),
-    "notice": FieldSchema(kind="integer", minimum=0, maximum=365),
-    "horizon": FieldSchema(pattern=r"\d{4}(-Q[1-4])?"),
-})
+DOMAIN_SCHEMA = DocumentSchema(
+    fields={
+        "category": FieldSchema(required=True, choices=frozenset({"a", "b"})),
+        "renews": FieldSchema(required=True, kind="date"),
+        "notice": FieldSchema(kind="integer", minimum=0, maximum=365),
+        "horizon": FieldSchema(pattern=r"\d{4}(-Q[1-4])?"),
+    }
+)
 
 
 def test_document_schema_validates_composable_field_rules() -> None:
-    assert DOMAIN_SCHEMA.validate({
-        "category": "a", "renews": "2027-01-02", "notice": "90",
-        "horizon": "2027-Q2",
-    }) == []
-    errors = DOMAIN_SCHEMA.validate({
-        "category": "x", "renews": "someday", "notice": "999",
-        "horizon": "soon",
-    })
+    assert (
+        DOMAIN_SCHEMA.validate(
+            {
+                "category": "a",
+                "renews": "2027-01-02",
+                "notice": "90",
+                "horizon": "2027-Q2",
+            }
+        )
+        == []
+    )
+    errors = DOMAIN_SCHEMA.validate(
+        {
+            "category": "x",
+            "renews": "someday",
+            "notice": "999",
+            "horizon": "soon",
+        }
+    )
     assert any("category" in error and "one of" in error for error in errors)
     assert any("ISO date" in error for error in errors)
     assert any("at most 365" in error for error in errors)
@@ -49,7 +63,7 @@ def test_profile_rejects_schema_for_unknown_doc_type() -> None:
         replace(LABS_PROFILE, document_schemas={"renewal": DOMAIN_SCHEMA})
 
 
-def test_doctor_applies_profile_document_schema(tmp_path) -> None:
+def test_doctor_applies_profile_document_schema(tmp_path: Path) -> None:
     docs = tmp_path / "03 Runbooks"
     docs.mkdir(parents=True)
     (docs / "bad.md").write_text(

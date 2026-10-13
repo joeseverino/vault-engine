@@ -13,15 +13,14 @@ because it's much faster than Python's pathlib at scale. Otherwise we fall
 back to `Path.rglob`.
 """
 
-from __future__ import annotations
-
 import shutil
 import subprocess
 import time
 import tomllib
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .config import Config
 from .frontmatter import split_frontmatter
@@ -41,7 +40,7 @@ def _walk_md(root: Path) -> list[Path]:
     fd = shutil.which("fd")
     if fd:
         try:
-            proc = subprocess.run(
+            proc = subprocess.run(  # noqa: S603 - argv list, no shell
                 [fd, "--type", "f", "--extension", "md", ".", str(root)],
                 capture_output=True,
                 text=True,
@@ -49,12 +48,12 @@ def _walk_md(root: Path) -> list[Path]:
                 check=True,
             )
             return sorted(Path(line) for line in proc.stdout.splitlines() if line)
-        except (subprocess.SubprocessError, OSError):
+        except subprocess.SubprocessError, OSError:
             pass  # fall through to the pathlib fallback
     return sorted(root.rglob("*.md"))
 
 
-def iter_markdown_files(vault_path: Path, indexed_dirs) -> Iterator[Path]:
+def iter_markdown_files(vault_path: Path, indexed_dirs: Iterable[str]) -> Iterator[Path]:
     """Every vault-doc markdown file under the indexed dirs, skip rules applied
     once. The single definition of "which files are vault docs" — the index, the
     doctor, and the HQ manifest all consume this rather than re-implementing the
@@ -92,22 +91,22 @@ class Doc:
     tags: list[str]
     related_projects: list[str]
     related_assets: list[str]
-    path: Path                 # absolute path on disk
-    relative_path: str         # vault-root-relative
-    body: str                  # markdown body (after frontmatter)
-    body_start_line: int = 1   # 1-indexed line in the source file where the body begins
-                               # (line after the closing `---`); ripgrep-based search
-                               # uses this to skip matches that fall inside frontmatter.
+    path: Path  # absolute path on disk
+    relative_path: str  # vault-root-relative
+    body: str  # markdown body (after frontmatter)
+    body_start_line: int = 1  # 1-indexed line in the source file where the body begins
+    # (line after the closing `---`); ripgrep-based search
+    # uses this to skip matches that fall inside frontmatter.
     sections: list[Section] = field(default_factory=list)
-                               # H2-chunked spans for section-scoped retrieval; see
-                               # sections.py. Empty list == not yet parsed (cheap default).
-    extra: dict = field(default_factory=dict)
-                               # Every frontmatter key the engine doesn't consume,
-                               # values as parsed. One parser emits; a profile's
-                               # domain layer derives its fields from here instead
-                               # of re-reading files.
+    # H2-chunked spans for section-scoped retrieval; see
+    # sections.py. Empty list == not yet parsed (cheap default).
+    extra: dict[str, Any] = field(default_factory=dict)
+    # Every frontmatter key the engine doesn't consume,
+    # values as parsed. One parser emits; a profile's
+    # domain layer derives its fields from here instead
+    # of re-reading files.
 
-    def to_metadata(self) -> dict:
+    def to_metadata(self) -> dict[str, Any]:
         """Lossless metadata view — never includes the body."""
         return {
             "doc_id": self.doc_id,
@@ -128,13 +127,24 @@ class Doc:
 
 # The frontmatter keys the engine consumes into named Doc fields; everything
 # else lands in Doc.extra verbatim (the lossless remainder).
-_CORE_FRONTMATTER_KEYS = frozenset({
-    "doc_id", "title", "doc_type", "system", "environment", "status",
-    "sensitivity", "last_reviewed", "tags", "related_projects", "related_assets",
-})
+_CORE_FRONTMATTER_KEYS = frozenset(
+    {
+        "doc_id",
+        "title",
+        "doc_type",
+        "system",
+        "environment",
+        "status",
+        "sensitivity",
+        "last_reviewed",
+        "tags",
+        "related_projects",
+        "related_assets",
+    }
+)
 
 
-def _coerce_list(value) -> list[str]:
+def _coerce_list(value: object) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
@@ -147,6 +157,7 @@ def _normalize_alias(value: str) -> str:
 
 
 # ----- Index -----------------------------------------------------------------
+
 
 @dataclass
 class Index:
@@ -166,11 +177,7 @@ class Index:
             )
             paths.append(doc.relative_path)
             self.by_doc_id.pop(doc.doc_id, None)
-            self.docs = [
-                candidate
-                for candidate in self.docs
-                if candidate.doc_id != doc.doc_id
-            ]
+            self.docs = [candidate for candidate in self.docs if candidate.doc_id != doc.doc_id]
             return
         if doc.doc_id in self.duplicate_doc_ids:
             self.duplicate_doc_ids[doc.doc_id].append(doc.relative_path)
@@ -231,7 +238,7 @@ class VaultLoader:
                 data = tomllib.load(handle)
         except FileNotFoundError:
             return {}, {}
-        except (OSError, tomllib.TOMLDecodeError):
+        except OSError, tomllib.TOMLDecodeError:
             return {}, {}
 
         raw_aliases = data.get("aliases", {})
@@ -251,7 +258,7 @@ class VaultLoader:
                 invalid[alias] = doc_id
         return aliases, invalid
 
-    def _mk_doc(self, path: Path, fm: dict, body: str, body_start_line: int) -> Doc:
+    def _mk_doc(self, path: Path, fm: dict[str, Any], body: str, body_start_line: int) -> Doc:
         extra = {k: v for k, v in fm.items() if k not in _CORE_FRONTMATTER_KEYS}
         return Doc(
             doc_id=str(fm["doc_id"]),

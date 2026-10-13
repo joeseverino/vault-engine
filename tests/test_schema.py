@@ -1,8 +1,8 @@
 """The schema emitter is the contract HQ consumes — keep it honest."""
 
-from __future__ import annotations
-
 from pathlib import Path
+
+import pytest
 
 from vault_engine import schema
 
@@ -32,13 +32,12 @@ def test_schema_is_canonicalized() -> None:
     assert {"public", "internal", "sensitive", "restricted"} == schema.SENSITIVITIES
 
 
-def _doc(env_line: str = None, sens_line: str = None) -> str:
+def _doc(env_line: str | None = None, sens_line: str | None = None) -> str:
     return "\n".join(
         [
             "## Schema",
             "```yaml",
-            "doc_type:      "
-            + " | ".join(sorted(schema.DOC_TYPES)),
+            "doc_type:      " + " | ".join(sorted(schema.DOC_TYPES)),
             env_line or ("environment:   " + " | ".join(sorted(schema.ENVIRONMENTS))),
             "status:        " + " | ".join(sorted(schema.STATUSES)),
             sens_line or ("sensitivity:   " + " | ".join(sorted(schema.SENSITIVITIES))),
@@ -51,16 +50,19 @@ def test_check_doc_enums_passes_when_current() -> None:
     assert schema.check_doc_enums(_doc()) == []
 
 
-def test_check_doc_enums_flags_unknown_value() -> None:
-    bad = _doc(env_line="environment:   homelab | lab | other")
-    mismatches = schema.check_doc_enums(bad)
-    assert any("environment" in m and "lab" in m for m in mismatches)
-
-
-def test_check_doc_enums_flags_missing_value() -> None:
-    bad = _doc(sens_line="sensitivity:   public | internal")
-    mismatches = schema.check_doc_enums(bad)
-    assert any("sensitivity" in m and "missing" in m for m in mismatches)
+@pytest.mark.parametrize(
+    ("kwargs", "field", "word"),
+    [
+        ({"env_line": "environment:   homelab | lab | other"}, "environment", "lab"),
+        ({"sens_line": "sensitivity:   public | internal"}, "sensitivity", "missing"),
+    ],
+    ids=["unknown value", "missing value"],
+)
+def test_check_doc_enums_flags_drifted_values(
+    kwargs: dict[str, str], field: str, word: str
+) -> None:
+    mismatches = schema.check_doc_enums(_doc(**kwargs))
+    assert any(field in m and word in m for m in mismatches)
 
 
 def test_check_doc_enums_flags_absent_field() -> None:

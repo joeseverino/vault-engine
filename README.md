@@ -42,7 +42,7 @@ pip install severino-vault-engine        # or:  uv add severino-vault-engine
 ```
 
 The import package is `vault_engine`; the distribution on PyPI is
-`severino-vault-engine`.
+`severino-vault-engine`. Python 3.14 or newer is required.
 
 ## Use
 
@@ -56,7 +56,7 @@ from mcp.server.fastmcp import FastMCP
 labs = GovernanceContext(Config.load("labs.toml"))
 edu = GovernanceContext(Config.load("edu.toml"), profile=EDUCATION_PROFILE)
 mcp = FastMCP("my-vault-mcp")
-register_core(mcp, {"labs": labs, "edu": edu}, default="labs")   # + your own tool groups
+register_core(mcp, {"labs": labs, "edu": edu}, default="labs")  # + your own tool groups
 ```
 
 Domain tool groups register beside it with a single vault's context; everything

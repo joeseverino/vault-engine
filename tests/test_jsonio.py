@@ -1,7 +1,5 @@
 """Tests for the single JSON serialization/parsing home."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import pytest

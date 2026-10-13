@@ -4,34 +4,36 @@ A recorder stands in for FastMCP (the engine has no mcp dependency); it keeps
 the decorated callables so each test drives the real registered function.
 """
 
-from __future__ import annotations
-
 import shutil
 import typing
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from vault_engine.config import Config
 from vault_engine.context import GovernanceContext
 from vault_engine.core_tools import register_core
-from vault_engine.schema import EDUCATION_PROFILE, LABS_PROFILE
+from vault_engine.schema import EDUCATION_PROFILE, LABS_PROFILE, SchemaProfile
 
 
 class Recorder:
     def __init__(self) -> None:
-        self.tools: dict[str, typing.Callable] = {}
-        self.resources: dict[str, typing.Callable] = {}
+        self.tools: dict[str, Callable[..., Any]] = {}
+        self.resources: dict[str, Callable[..., Any]] = {}
 
-    def tool(self):
-        def decorate(fn):
+    def tool(self) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
             self.tools[fn.__name__] = fn
             return fn
 
         return decorate
 
-    def resource(self, uri, **_kwargs):
-        def decorate(fn):
+    def resource(
+        self, uri: str, **_kwargs: Any
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
             self.resources[uri] = fn
             return fn
 
@@ -43,7 +45,7 @@ def _doc(path: Path, front: str, body: str = "## Goal\n\nDo the thing.\n") -> No
     path.write_text(f"---\n{front.strip()}\n---\n\n{body}", encoding="utf-8")
 
 
-def _context(root: Path, profile, tmp_path: Path) -> GovernanceContext:
+def _context(root: Path, profile: SchemaProfile, tmp_path: Path) -> GovernanceContext:
     env = {
         "SVMC_CONFIG": str(tmp_path / "absent.toml"),
         "SVMC_VAULT_PATH": str(root),
@@ -129,13 +131,17 @@ def test_registers_eight_tools_and_two_templates(server: Recorder) -> None:
         "task_write",
         "update_link",
     ]
-    assert sorted(server.resources) == ["vault://{vault}/doc/{doc_id}", "vault://{vault}/quick-index"]
+    assert sorted(server.resources) == [
+        "vault://{vault}/doc/{doc_id}",
+        "vault://{vault}/quick-index",
+    ]
 
 
 def test_vault_argument_is_a_literal_of_configured_names(server: Recorder) -> None:
     for name, fn in server.tools.items():
         annotation = fn.__annotations__["vault"]
-        assert typing.get_origin(annotation) is typing.Literal, name
+        origin: Any = typing.get_origin(annotation)
+        assert origin is typing.Literal, name
         assert typing.get_args(annotation) == ("labs", "edu"), name
 
 
@@ -206,7 +212,13 @@ def test_resources_render_per_vault(server: Recorder) -> None:
 
 def test_set_frontmatter_validates_against_each_vaults_profile(server: Recorder) -> None:
     write = server.tools["set_frontmatter"]
-    fields = dict(doc_id="course-cs6200", title="Lecture", doc_type="course", system="Georgia Tech", environment="gatech")
+    fields = {
+        "doc_id": "course-cs6200",
+        "title": "Lecture",
+        "doc_type": "course",
+        "system": "Georgia Tech",
+        "environment": "gatech",
+    }
     rejected = write("03 Runbooks/Untagged.md", **fields)
     assert rejected["ok"] is False and "doc_type" in rejected["error"]
     created = write("03 Runbooks/Lecture.md", vault="edu", **fields)

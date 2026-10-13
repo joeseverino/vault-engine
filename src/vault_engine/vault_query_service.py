@@ -7,8 +7,6 @@ delegates, and the same ``Doc`` -> hit projection (:func:`doc_to_hit`) is used b
 every search-shaped response.
 """
 
-from __future__ import annotations
-
 import json
 import shutil
 import subprocess
@@ -45,9 +43,10 @@ def recent_changes(
 
     cwd = str(loader.config.vault_path)
     try:
-        proc = subprocess.run(
-            [
-                "git", "log",
+        proc = subprocess.run(  # noqa: S603 - argv list, no shell
+            [  # noqa: S607 - resolved from PATH on purpose
+                "git",
+                "log",
                 f"--since={days}.days.ago",
                 f"-n{limit}",
                 "--pretty=format:%H|%cI|%s",
@@ -70,9 +69,7 @@ def recent_changes(
     for line in proc.stdout.splitlines():
         parts = line.split("|", 2)
         if len(parts) == 3:
-            commits.append(
-                {"sha": parts[0], "committed_at": parts[1], "subject": parts[2]}
-            )
+            commits.append({"sha": parts[0], "committed_at": parts[1], "subject": parts[2]})
 
     return {
         "days": days,
@@ -127,8 +124,10 @@ def search_body(
     cmd = [
         rg,
         "--json",
-        "--type", "md",
-        "--max-count", "10",   # per-file cap
+        "--type",
+        "md",
+        "--max-count",
+        "10",  # per-file cap
         f"--context={max(0, min(int(context_lines), 5))}",
         "--no-ignore-vcs",
     ]
@@ -138,7 +137,7 @@ def search_body(
     cmd.extend(str(r) for r in indexed_roots)
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: S603 - argv list, no shell
             cmd, capture_output=True, text=True, timeout=15, check=False
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -146,12 +145,10 @@ def search_body(
 
     if proc.returncode > 1:
         # rg returns 1 for "no matches" — that's fine. Anything else is bad.
-        return {
-            "error": proc.stderr.strip() or f"ripgrep returncode={proc.returncode}"
-        }
+        return {"error": proc.stderr.strip() or f"ripgrep returncode={proc.returncode}"}
 
     # Walk rg --json output. Group matches by source file.
-    matches_by_path: dict[str, list[dict]] = {}
+    matches_by_path: dict[str, list[dict[str, Any]]] = {}
     current_path: str | None = None
     for line in proc.stdout.splitlines():
         if not line:
@@ -171,16 +168,18 @@ def search_body(
             text = (data.get("lines") or {}).get("text", "").rstrip("\n")
             if line_no is None:
                 continue
-            matches_by_path[current_path].append({
-                "line_number": line_no,
-                "kind": t,
-                "text": text,
-            })
+            matches_by_path[current_path].append(
+                {
+                    "line_number": line_no,
+                    "kind": t,
+                    "text": text,
+                }
+            )
 
     # Resolve each path to a Doc, apply the sensitivity gate, and drop
     # matches that fall inside the frontmatter block.
     by_path_to_doc = {str(d.path): d for d in idx.docs}
-    hits_by_doc: list[dict] = []
+    hits_by_doc: list[dict[str, Any]] = []
     excluded = {
         "restricted_skipped": 0,
         "secret_adjacent_skipped": 0,
@@ -205,13 +204,18 @@ def search_body(
         match_count = sum(1 for h in in_body if h["kind"] == "match")
         if match_count == 0:
             continue
-        hits_by_doc.append({
-            **doc_to_hit(doc),
-            "match_count": match_count,
-            "snippets": in_body,
-            **({"advisory": advisory(doc.sensitivity)}
-               if doc.sensitivity is Sensitivity.SENSITIVE else {}),
-        })
+        hits_by_doc.append(
+            {
+                **doc_to_hit(doc),
+                "match_count": match_count,
+                "snippets": in_body,
+                **(
+                    {"advisory": advisory(doc.sensitivity)}
+                    if doc.sensitivity is Sensitivity.SENSITIVE
+                    else {}
+                ),
+            }
+        )
 
     # Sort by match count (desc), then last_reviewed (desc), then title.
     hits_by_doc.sort(

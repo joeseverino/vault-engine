@@ -49,11 +49,13 @@ from vault_engine.context import ServerContext
 from vault_engine.core_tools import register_core
 
 mcp = FastMCP("myvault-mcp")
-ctx = ServerContext(Config.from_env())   # vault + active schema profile
-register_core(mcp, {"main": ctx})         # the 8 core tools, vault="main"
+ctx = ServerContext(Config.from_env())  # vault + active schema profile
+register_core(mcp, {"main": ctx})  # the 8 core tools, vault="main"
+
 
 def main() -> None:
-    mcp.run()                             # stdio transport
+    mcp.run()  # stdio transport
+
 
 if __name__ == "__main__":
     main()
@@ -138,9 +140,9 @@ the same `mcp`, pulling what you need off `ctx`:
 ```python
 @mcp.tool()
 def my_domain_tool(arg: str) -> dict:
-    idx = ctx.loader.index()          # the shared lenient index
+    idx = ctx.loader.index()  # the shared lenient index
     ...
-    return {"ok": True, "result": ...}   # see the response contract below
+    return {"ok": True, "result": ...}  # see the response contract below
 ```
 
 Hard rules — match the engine, don't diverge:

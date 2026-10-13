@@ -2,20 +2,21 @@
 set_task_status do — so a valid task (its own status lifecycle and slimmer
 required-field set) is not flagged with false errors."""
 
-from __future__ import annotations
-
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from vault_engine.doctor import DoctorReport, _validate_frontmatter
 
 
-def _errors(fm: dict) -> list[str]:
+def _errors(fm: dict[str, Any]) -> list[str]:
     report = DoctorReport(vault_path=Path("/vault"))
     _validate_frontmatter(report, "x.md", fm)
     return [f.message for f in report.findings if f.severity == "error"]
 
 
-def test_valid_task_has_no_findings():
+def test_valid_task_has_no_findings() -> None:
     # A task as add_task writes it: status=open, no system/environment/sensitivity.
     fm = {
         "doc_id": "task-ship-the-thing",
@@ -26,28 +27,38 @@ def test_valid_task_has_no_findings():
     assert _errors(fm) == []
 
 
-def test_task_status_lifecycle_is_enforced_not_the_flat_set():
-    # "deprecated" is a standard-doc status, never a task status.
-    errs = _errors({"doc_id": "task-x", "title": "x", "doc_type": "task", "status": "deprecated"})
-    assert any("status=" in e for e in errs)
+@pytest.mark.parametrize(
+    "fm",
+    [
+        pytest.param(
+            {"doc_id": "task-x", "title": "x", "doc_type": "task", "status": "deprecated"},
+            id="a standard-doc status is never a task status",
+        ),
+        pytest.param(
+            {
+                "doc_id": "rb-x",
+                "title": "x",
+                "doc_type": "runbook",
+                "system": "s",
+                "environment": "homelab",
+                "sensitivity": "internal",
+                "status": "parked",
+            },
+            id="a task status is never a standard-doc status",
+        ),
+    ],
+)
+def test_each_doc_type_enforces_its_own_status_lifecycle(fm: dict[str, Any]) -> None:
+    assert any("status=" in e for e in _errors(fm))
 
 
-def test_standard_doc_still_requires_the_full_field_set():
+def test_standard_doc_still_requires_the_full_field_set() -> None:
     # A runbook missing system/environment/sensitivity is still flagged.
     errs = _errors({"doc_id": "rb-x", "title": "x", "doc_type": "runbook", "status": "active"})
     assert any("missing required field" in e for e in errs)
 
 
-def test_standard_doc_rejects_a_task_status():
-    errs = _errors({
-        "doc_id": "rb-x", "title": "x", "doc_type": "runbook",
-        "system": "s", "environment": "homelab", "sensitivity": "internal",
-        "status": "parked",
-    })
-    assert any("status=" in e for e in errs)
-
-
-def test_validate_frontmatter_honors_a_custom_profile():
+def test_validate_frontmatter_honors_a_custom_profile() -> None:
     # The doctor is profile-parameterized: a doc valid under one profile is
     # invalid under another, from the same call site.
     from vault_engine.schema import SchemaProfile

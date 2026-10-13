@@ -8,8 +8,6 @@ and call in here, so the idempotent-region logic lives in one place rather than
 being re-copied per feature.
 """
 
-from __future__ import annotations
-
 
 def replace_region(text: str, begin: str, end: str, content: str) -> str | None:
     """Rewrite the span between the ``begin`` and ``end`` markers.
@@ -21,7 +19,7 @@ def replace_region(text: str, begin: str, end: str, content: str) -> str | None:
     bi, ei = text.find(begin), text.find(end)
     if bi == -1 or ei == -1 or ei < bi:
         return None
-    return f"{text[:bi + len(begin)]}\n{content}\n{text[ei:]}"
+    return f"{text[: bi + len(begin)]}\n{content}\n{text[ei:]}"
 
 
 def markers(region_id: str) -> tuple[str, str]:

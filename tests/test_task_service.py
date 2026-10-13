@@ -1,7 +1,5 @@
 """Tasks — the vault's one task brain (index-derived board, atomic writes)."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import pytest
@@ -21,13 +19,12 @@ from vault_engine.vault import VaultLoader
 
 
 @pytest.fixture
-def task_vault(tmp_path: Path, monkeypatch) -> Path:
+def task_vault(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A vault with one project folder and the cross-cutting bucket."""
     (tmp_path / "01 Projects" / "cordon").mkdir(parents=True)
     (tmp_path / "07 Backlog").mkdir()
     (tmp_path / "01 Projects" / "cordon" / "index.md").write_text(
-        "---\ndoc_id: project-cordon\ntitle: Cordon\n"
-        "doc_type: architecture_note\n---\n# Cordon\n",
+        "---\ndoc_id: project-cordon\ntitle: Cordon\ndoc_type: architecture_note\n---\n# Cordon\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("SVMC_VAULT_PATH", str(tmp_path))
@@ -232,8 +229,13 @@ def test_promote_note_creates_a_task_preserving_body_and_removes_source(task_vau
     inbox = task_vault / "00 Inbox"
     inbox.mkdir()
     note = inbox / "2026-06-23 idea.md"
-    note.write_text("---\ndoc_id: inbox-x\ncreated: 2026-06-23\n---\n\nWire the retry backoff.\n", encoding="utf-8")
-    result = promote_note(_loader(), "00 Inbox/2026-06-23 idea.md", title="Wire the retry backoff", project="cordon")
+    note.write_text(
+        "---\ndoc_id: inbox-x\ncreated: 2026-06-23\n---\n\nWire the retry backoff.\n",
+        encoding="utf-8",
+    )
+    result = promote_note(
+        _loader(), "00 Inbox/2026-06-23 idea.md", title="Wire the retry backoff", project="cordon"
+    )
     assert result["ok"] is True
     assert result["relative_path"] == "01 Projects/cordon/tasks/task-wire-the-retry-backoff.md"
     assert result["promoted_from"] == "00 Inbox/2026-06-23 idea.md"

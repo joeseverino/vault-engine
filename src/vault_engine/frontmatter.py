@@ -4,8 +4,6 @@ Durable file replacement lives in :mod:`atomic_write`; this module is only the
 YAML subset (parse + serialize) so the escaping rules have a single home.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 from typing import Any
@@ -19,9 +17,9 @@ def scalar(token: str) -> str | bool | None:
         token = token[1:-1]
     if token in ("null", "~", ""):
         return None
-    if token == "true":
+    if token == "true":  # noqa: S105 - literal, not a credential
         return True
-    if token == "false":
+    if token == "false":  # noqa: S105 - literal, not a credential
         return False
     return token
 
@@ -82,9 +80,7 @@ def parse_yaml_block(block: str) -> dict[str, Any]:
             if value.startswith("|"):
                 data[key] = "\n".join(block_lines).strip()
             else:
-                data[key] = " ".join(
-                    line for line in block_lines if line
-                ).strip()
+                data[key] = " ".join(line for line in block_lines if line).strip()
             current_list_key = None
             continue
         if value == "":
@@ -93,10 +89,7 @@ def parse_yaml_block(block: str) -> dict[str, Any]:
             continue
         current_list_key = None
         if value.startswith("[") and value.endswith("]"):
-            data[key] = [
-                scalar(item)
-                for item in split_inline_list(value[1:-1].strip())
-            ]
+            data[key] = [scalar(item) for item in split_inline_list(value[1:-1].strip())]
             continue
         data[key] = scalar(value)
     return data
@@ -116,11 +109,7 @@ def split_frontmatter(
     if start is None:
         return None, text, 1
     end = next(
-        (
-            index
-            for index in range(start + 1, len(lines))
-            if lines[index].strip() == "---"
-        ),
+        (index for index in range(start + 1, len(lines)) if lines[index].strip() == "---"),
         None,
     )
     if end is None:
@@ -158,7 +147,21 @@ _KNOWN_KEY_ORDER = (
 )
 
 _YAML_SPECIAL_CHARS = (
-    ":", "#", "@", "|", ">", "{", "}", "[", "]", ",", "&", "*", "!", "%", "`",
+    ":",
+    "#",
+    "@",
+    "|",
+    ">",
+    "{",
+    "}",
+    "[",
+    "]",
+    ",",
+    "&",
+    "*",
+    "!",
+    "%",
+    "`",
 )
 
 
@@ -193,9 +196,7 @@ def serialize_frontmatter(data: dict[str, Any]) -> str:
                 lines.append(f"{key}: []")
             else:
                 lines.append(f"{key}:")
-                lines.extend(
-                    f"  - {yaml_escape(str(item))}" for item in value
-                )
+                lines.extend(f"  - {yaml_escape(str(item))}" for item in value)
         elif value is None:
             lines.append(f"{key}: null")
         elif isinstance(value, bool):

@@ -19,8 +19,6 @@ path for sensitive docs. That policy belongs to those consumers, not this
 local MCP read path.
 """
 
-from __future__ import annotations
-
 from enum import StrEnum
 
 
@@ -30,7 +28,7 @@ class Sensitivity(StrEnum):
     SENSITIVE = "sensitive"
     RESTRICTED = "restricted"
     # Backwards-compatible enum alias for existing code and older vaults.
-    SECRET_ADJACENT = "restricted"
+    SECRET_ADJACENT = "restricted"  # noqa: S105 - literal, not a credential
 
     @classmethod
     def parse(cls, value: str | None) -> Sensitivity:

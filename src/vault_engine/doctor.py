@@ -1,10 +1,10 @@
 """Vault validation helpers for messy-vault onboarding."""
 
-from __future__ import annotations
-
 import re
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .config import Config
 from .frontmatter import split_frontmatter
@@ -54,12 +54,14 @@ def validate_vault(
 
         fm, _body, _body_start_line = split_frontmatter(text)
         if not fm:
-            report.add(DoctorFinding(
-                relative_path,
-                "error",
-                "missing YAML frontmatter",
-                _proposal_for(path, config.vault_path) if propose else None,
-            ))
+            report.add(
+                DoctorFinding(
+                    relative_path,
+                    "error",
+                    "missing YAML frontmatter",
+                    _proposal_for(path, config.vault_path) if propose else None,
+                )
+            )
             continue
 
         doc_id = fm.get("doc_id")
@@ -67,11 +69,13 @@ def validate_vault(
             report.indexed_docs += 1
             doc_id = str(doc_id)
             if doc_id in seen_doc_ids:
-                report.add(DoctorFinding(
-                    relative_path,
-                    "error",
-                    f"duplicate doc_id {doc_id!r}; already used by {seen_doc_ids[doc_id]}",
-                ))
+                report.add(
+                    DoctorFinding(
+                        relative_path,
+                        "error",
+                        f"duplicate doc_id {doc_id!r}; already used by {seen_doc_ids[doc_id]}",
+                    )
+                )
             else:
                 seen_doc_ids[doc_id] = relative_path
         _validate_frontmatter(report, relative_path, fm, profile)
@@ -110,7 +114,7 @@ def _iter_markdown_files(config: Config) -> list[Path]:
 def _validate_frontmatter(
     report: DoctorReport,
     relative_path: str,
-    fm: dict,
+    fm: dict[str, Any],
     profile: SchemaProfile = LABS_PROFILE,
 ) -> None:
     # A task carries its own lifecycle: a slimmer required-field set (no
@@ -124,15 +128,19 @@ def _validate_frontmatter(
 
     for field_name in required:
         if fm.get(field_name) in (None, "", []):
-            report.add(DoctorFinding(relative_path, "error", f"missing required field: {field_name}"))
+            report.add(
+                DoctorFinding(relative_path, "error", f"missing required field: {field_name}")
+            )
 
     doc_id = str(fm.get("doc_id") or "")
     if doc_id and not doc_id.startswith(profile.doc_id_prefixes):
-        report.add(DoctorFinding(
-            relative_path,
-            "error",
-            f"doc_id must start with one of: {', '.join(profile.doc_id_prefixes)}",
-        ))
+        report.add(
+            DoctorFinding(
+                relative_path,
+                "error",
+                f"doc_id must start with one of: {', '.join(profile.doc_id_prefixes)}",
+            )
+        )
 
     _validate_enum(report, relative_path, fm, "doc_type", profile.doc_types)
     _validate_enum(report, relative_path, fm, "environment", profile.environments)
@@ -145,25 +153,29 @@ def _validate_frontmatter(
     for list_field in ("tags", "related_projects", "related_assets"):
         value = fm.get(list_field)
         if value is not None and not isinstance(_coerce_list(value), list):
-            report.add(DoctorFinding(relative_path, "error", f"{list_field} must be a string or list"))
+            report.add(
+                DoctorFinding(relative_path, "error", f"{list_field} must be a string or list")
+            )
 
 
 def _validate_enum(
     report: DoctorReport,
     relative_path: str,
-    fm: dict,
+    fm: dict[str, Any],
     field_name: str,
-    allowed: set[str],
+    allowed: Collection[str],
 ) -> None:
     value = fm.get(field_name)
     if value in (None, ""):
         return
     if str(value) not in allowed:
-        report.add(DoctorFinding(
-            relative_path,
-            "error",
-            f"{field_name}={value!r} must be one of: {', '.join(sorted(allowed))}",
-        ))
+        report.add(
+            DoctorFinding(
+                relative_path,
+                "error",
+                f"{field_name}={value!r} must be one of: {', '.join(sorted(allowed))}",
+            )
+        )
 
 
 def _proposal_for(path: Path, vault_path: Path) -> str:

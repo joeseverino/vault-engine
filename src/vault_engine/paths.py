@@ -7,8 +7,6 @@ elsewhere, and every tool returns the same ``{"ok": False, "error": ...}``
 failure envelope.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Any
 
@@ -28,13 +26,10 @@ def path_within_root(
     resolved_root = root.resolve()
     try:
         path.resolve().relative_to(resolved_root)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return {
             "ok": False,
-            "error": (
-                f"{label} must stay inside configured vault root "
-                f"{resolved_root}: {path}"
-            ),
+            "error": (f"{label} must stay inside configured vault root {resolved_root}: {path}"),
         }
     if kind == "dir" and not path.is_dir():
         return {"ok": False, "error": f"{label} not found: {path}"}
@@ -65,16 +60,10 @@ def validate_indexed_path(
             "ok": False,
             "error": f"file not found: {relative_path}",
         }
-    if not any(
-        full_path.is_relative_to(vault_root / sub)
-        for sub in config.indexed_dirs
-    ):
+    if not any(full_path.is_relative_to(vault_root / sub) for sub in config.indexed_dirs):
         return None, {
             "ok": False,
-            "error": (
-                f"path is outside the indexed dirs: "
-                f"{list(config.indexed_dirs)}"
-            ),
+            "error": (f"path is outside the indexed dirs: {list(config.indexed_dirs)}"),
         }
     return full_path, None
 

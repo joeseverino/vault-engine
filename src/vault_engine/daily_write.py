@@ -12,12 +12,10 @@ the note is not re-indexed. The rendered content is owned by the caller
 (``tools``' ``vault daily``); this module only places it safely.
 """
 
-from __future__ import annotations
-
 from datetime import date as date_cls
-from datetime import datetime
 from typing import Any
 
+from ._clock import local_now, local_today
 from .atomic_write import atomic_write_text
 from .config import Config
 from .frontmatter import serialize_frontmatter
@@ -29,7 +27,7 @@ REGION_ID = "daily-brief"
 
 def _stub_text(note_date: date_cls) -> str:
     """A fresh daily note's frontmatter, per the vault's daily-note contract."""
-    now = datetime.now()
+    now = local_now()
     return serialize_frontmatter(
         {
             "doc_id": f"daily-{note_date:%Y%m%d}",
@@ -49,7 +47,7 @@ def write_daily_block(
     path works without Obsidian. Returns the standard ``{"ok": ...}`` envelope.
     """
     try:
-        day = date_cls.fromisoformat(note_date) if note_date else datetime.now().date()
+        day = date_cls.fromisoformat(note_date) if note_date else local_today()
     except ValueError:
         return {"ok": False, "error": f"invalid date {note_date!r} (want YYYY-MM-DD)"}
 
@@ -63,7 +61,13 @@ def write_daily_block(
 
     new_text, inserted = upsert_region(text, REGION_ID, content)
     if new_text == text:
-        return {"ok": True, "wrote": relative, "changed": False, "created": False, "inserted": False}
+        return {
+            "ok": True,
+            "wrote": relative,
+            "changed": False,
+            "created": False,
+            "inserted": False,
+        }
 
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,4 +84,4 @@ def write_daily_block(
     }
 
 
-__all__ = ["write_daily_block", "REGION_ID"]
+__all__ = ["REGION_ID", "write_daily_block"]
