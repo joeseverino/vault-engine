@@ -8,4 +8,4 @@ server. Servers compose it against their own vaults and profiles; the engine
 itself carries no server or domain knowledge.
 """
 
-__version__ = "1.0.0"  # x-release-please-version
+__version__ = "2.0.0"  # x-release-please-version
