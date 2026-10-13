@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0](https://github.com/joeseverino/vault-engine/compare/v1.0.0...v2.0.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* require Python 3.14, with strict typing, a wider lint set and shared fixtures ([#27](https://github.com/joeseverino/vault-engine/issues/27))
+* register_core takes a mapping of vault name to context; the 19 core tools become 8 (find, read_doc, set_frontmatter, update_link, task_board, task_write, recent_changes, daily_progress), each with a vault argument. Resources are vault://{vault}/quick-index and vault://{vault}/doc/{doc_id}. describe_commands, task_projects and reconcile_tasks leave the MCP surface.
+
+### Features
+
+* one registration per core tool, routed by vault ([#25](https://github.com/joeseverino/vault-engine/issues/25)) ([d749407](https://github.com/joeseverino/vault-engine/commit/d749407fb3c9253d75dcb6d933bc243d4fcb1477))
+* require Python 3.14, with strict typing, a wider lint set and shared fixtures ([#27](https://github.com/joeseverino/vault-engine/issues/27)) ([2b3e00e](https://github.com/joeseverino/vault-engine/commit/2b3e00e483eeacfd37ea47222957d29fb0f0c504))
+
 ## [1.0.0](https://github.com/joeseverino/vault-engine/compare/v0.3.0...v1.0.0) (2026-10-03)
 
 
